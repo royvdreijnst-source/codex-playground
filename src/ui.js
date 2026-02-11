@@ -5,6 +5,7 @@ import {
   canDragCard,
   doneStreet,
   getStreetProgress,
+  isBoardComplete,
   startHand,
 } from "./game.js";
 import { evaluateFiveCardHand, evaluateThreeCardTop } from "./evaluator.js";
@@ -24,7 +25,7 @@ function parseDragPayload(event) {
   }
 }
 
-export function createUI({ app, state, dispatch, resetState }) {
+export function createUI({ app, state, dispatch }) {
   function getTopRoyalty(evaluation) {
     if (evaluation.rankName === "Three of a Kind") {
       return evaluation.tiebreak[0] + 8;
@@ -122,6 +123,12 @@ export function createUI({ app, state, dispatch, resetState }) {
   }
 
   function renderStreetHistory() {
+    if (state.isFantasyland || state.dealtByStreet.fantasyland) {
+      const dealt = (state.dealtByStreet.fantasyland || []).join(" ");
+      const burned = state.burnedCards.length ? state.burnedCards.join(" ") : "-";
+      return `<ul><li>Fantasyland: Dealt [${dealt}] | Burned [${burned}]</li></ul>`;
+    }
+
     const lines = [];
     for (let street = 1; street <= 5; street += 1) {
       if (!state.dealtByStreet[street]) {
@@ -136,6 +143,20 @@ export function createUI({ app, state, dispatch, resetState }) {
     return `<ul>${lines.join("")}</ul>`;
   }
 
+  function renderFantasylandBanner() {
+    const notices = [];
+    if (state.isFantasyland) {
+      notices.push(`<p class="success-text"><strong>Fantasyland!</strong> Arrange your full pool freely.</p>`);
+    }
+    if (state.fantasylandEligibleNextHand) {
+      notices.push("<p class=\"success-text\">Qualified for Fantasyland next hand.</p>");
+    }
+    if (state.fantasylandBlockedNextHand && state.handFinished) {
+      notices.push("<p class=\"info-text\">Fantasyland cannot happen two hands in a row.</p>");
+    }
+    return notices.join("");
+  }
+
   function bindEvents() {
     const newHandButton = document.getElementById("new-hand");
     const doneStreetButton = document.getElementById("done-street");
@@ -145,7 +166,6 @@ export function createUI({ app, state, dispatch, resetState }) {
 
     newHandButton.addEventListener("click", () => {
       dispatch(() => {
-        resetState();
         startHand(state);
       });
     });
@@ -233,6 +253,7 @@ export function createUI({ app, state, dispatch, resetState }) {
   function render() {
     const requirement = STREET_REQUIREMENTS[state.currentStreet];
     const progress = getStreetProgress(state);
+    const fantasylandDoneDisabled = state.handFinished || !isBoardComplete(state);
 
     app.innerHTML = `
       <div class="outside-actions">
@@ -242,20 +263,27 @@ export function createUI({ app, state, dispatch, resetState }) {
       <section class="game-layout">
         <section class="panel controls-panel">
           <div class="control-row">
-            <button id="done-street" type="button" ${state.handFinished ? "disabled" : ""}>Done</button>
+            <button id="done-street" type="button" ${state.isFantasyland ? (fantasylandDoneDisabled ? "disabled" : "") : (state.handFinished ? "disabled" : "")}>Done</button>
           </div>
           <div class="street-meta">
-            <p class="street-title">Street ${state.currentStreet} / 5</p>
-            <p class="street-requirement">Requirement: ${requirement.text}</p>
-            <p class="street-progress">Placed this street: ${progress.placedNow}/${requirement.place} · Auto-discarded: ${progress.discardedNow}/${requirement.discard}</p>
+            ${state.isFantasyland ? `
+              <p class="street-title">Fantasyland Mode</p>
+              <p class="street-requirement">Deal size: ${state.fantasylandCardCount} · Place exactly 13 on board.</p>
+              <p class="street-progress">Board placed: ${progress.placedNow}/13 · Remaining extras: ${state.handCards.length}</p>
+            ` : `
+              <p class="street-title">Street ${state.currentStreet} / 5</p>
+              <p class="street-requirement">Requirement: ${requirement.text}</p>
+              <p class="street-progress">Placed this street: ${progress.placedNow}/${requirement.place} · Auto-discarded: ${progress.discardedNow}/${requirement.discard}</p>
+            `}
           </div>
+          ${renderFantasylandBanner()}
           <p class="status ${state.statusType}">${state.message}</p>
         </section>
 
         <section class="panel hand-panel">
           <header class="panel-heading">
-            <h2>Draw Area</h2>
-            <span class="panel-caption">Current street cards</span>
+            <h2>${state.isFantasyland ? "Fantasyland Pool" : "Draw Area"}</h2>
+            <span class="panel-caption">${state.isFantasyland ? "Unplaced cards (extras auto-burn on Done)" : "Current street cards"}</span>
           </header>
           <div class="hand-zone" data-drop-zone="hand">
             ${state.handCards.map((card) => renderCard(card, "hand")).join("")}
@@ -276,8 +304,8 @@ export function createUI({ app, state, dispatch, resetState }) {
 
         <section class="panel history-panel">
           <header class="panel-heading">
-            <h2>Street History</h2>
-            <span class="panel-caption">Dealt cards and auto-discards</span>
+            <h2>${state.isFantasyland || state.dealtByStreet.fantasyland ? "Deal History" : "Street History"}</h2>
+            <span class="panel-caption">${state.isFantasyland || state.dealtByStreet.fantasyland ? "Fantasyland deal and burns" : "Dealt cards and auto-discards"}</span>
           </header>
           ${renderStreetHistory()}
         </section>
@@ -285,6 +313,7 @@ export function createUI({ app, state, dispatch, resetState }) {
         <section class="panel rules-panel">
           <h2>Rules (current)</h2>
           <p>Foul rule: Bottom row must be at least as strong as Middle, and Middle must be at least as strong as Top. Fouled hands score 0 royalties.</p>
+          <p><strong>Fantasyland</strong>: Qualify with valid QQ+/trips on top. QQ=13 cards, KK=14, AA=15, trips=16. No consecutive Fantasyland hands.</p>
           <h3>Royalties</h3>
           <p><strong>Top (3 cards)</strong>: Pair 66=1, 77=2, 88=3, 99=4, TT=5, JJ=6, QQ=7, KK=8, AA=9. Trips: 222=10 ... AAA=22.</p>
           <p><strong>Middle (5 cards)</strong>: Trips=2, Straight=4, Flush=8, Full House=12, Quads=20, Straight Flush=30.</p>

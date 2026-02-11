@@ -127,3 +127,34 @@ export function compareHands(a, b) {
   }
   return compareValueArraysDescending(a.tiebreak, b.tiebreak);
 }
+
+export function getFantasylandQualification(board, isFouledBoard) {
+  if (isFouledBoard) {
+    return { eligible: false, cards: null };
+  }
+
+  const topEval = evaluateThreeCardTop(board.top);
+
+  if (topEval.rankName === "Three of a Kind") {
+    return { eligible: true, cards: 16 };
+  }
+
+  if (topEval.rankName !== "One Pair") {
+    return { eligible: false, cards: null };
+  }
+
+  const pairValue = topEval.tiebreak[0];
+  if (pairValue === RANK_VALUE.Q) {
+    return { eligible: true, cards: 13 };
+  }
+
+  if (pairValue === RANK_VALUE.K) {
+    return { eligible: true, cards: 14 };
+  }
+
+  if (pairValue === RANK_VALUE.A) {
+    return { eligible: true, cards: 15 };
+  }
+
+  return { eligible: false, cards: null };
+}
