@@ -6,7 +6,7 @@ import {
 } from "./evaluator.js";
 import { computeRoyalties } from "./royalties.js";
 import { chooseMove } from "./bot.js";
-import { RANKS, ROWS, STREET_REQUIREMENTS, SUITS } from "./state.js";
+import { RANKS, RANK_VALUE, ROWS, STREET_REQUIREMENTS, SUITS } from "./state.js";
 
 function setStatus(state, message, type = "info") {
   state.message = message;
@@ -15,6 +15,30 @@ function setStatus(state, message, type = "info") {
 
 function getPlacedCardCount(state) {
   return state.board.top.length + state.board.middle.length + state.board.bottom.length;
+}
+
+function getSuitSortValue(card) {
+  const suitOrder = { "♠": 0, "♥": 1, "♦": 2, "♣": 3 };
+  return suitOrder[card.suit] ?? 4;
+}
+
+function sortFantasylandHand(state) {
+  if (!state.isFantasyland) {
+    return;
+  }
+
+  if (state.fantasylandSortMode === "suit") {
+    state.handCards.sort((a, b) => {
+      const suitDelta = getSuitSortValue(a) - getSuitSortValue(b);
+      if (suitDelta !== 0) {
+        return suitDelta;
+      }
+      return RANK_VALUE[b.rank] - RANK_VALUE[a.rank];
+    });
+    return;
+  }
+
+  state.handCards.sort((a, b) => RANK_VALUE[a.rank] - RANK_VALUE[b.rank]);
 }
 
 function togglePlayer(playerId) {
@@ -128,6 +152,7 @@ function startFantasylandHand(state, cardCount, target = "human") {
   state.streetStartBoardCounts = { top: 0, middle: 0, bottom: 0 };
   state.dealtByStreet = { fantasyland: dealt.map((card) => card.code) };
   state.discardedByStreet = {};
+  sortFantasylandHand(state);
 
   setStatus(state, `Fantasyland! Arrange all cards freely (${cardCount} dealt).`, "success");
 }
@@ -344,6 +369,7 @@ export function applyDropToRow(state, cardId, rowKey) {
 
   const [card] = state.handCards.splice(handIndex, 1);
   row.push(card);
+  sortFantasylandHand(state);
 }
 
 export function applyMoveRowCard(state, cardId, destinationRowKey) {
@@ -383,6 +409,7 @@ export function applyMoveRowCardBackToHand(state, cardId) {
     if (index >= 0) {
       const [card] = state.board[key].splice(index, 1);
       state.handCards.push(card);
+      sortFantasylandHand(state);
       return;
     }
   }
@@ -554,24 +581,43 @@ function finishHand(state) {
   const opponentMiddle = evaluateFiveCardHand(state.opponentBoard.middle);
   const opponentBottom = evaluateFiveCardHand(state.opponentBoard.bottom);
 
+  const bothFouled = playerFouled && opponentFouled;
+  const singleFoul = (playerFouled || opponentFouled) && !bothFouled;
+
   const rowResults = {
     top: compareRows(playerTop, opponentTop, playerFouled, opponentFouled),
     middle: compareRows(playerMiddle, opponentMiddle, playerFouled, opponentFouled),
     bottom: compareRows(playerBottom, opponentBottom, playerFouled, opponentFouled),
   };
 
-  const playerWins = Object.values(rowResults).filter((result) => result > 0).length;
-  const opponentWins = Object.values(rowResults).filter((result) => result < 0).length;
-  const scoop = playerWins === 3 || opponentWins === 3;
-  const rowUnit = scoop ? 2 : 1;
-
-  const rowScores = {
-    top: rowResults.top * rowUnit,
-    middle: rowResults.middle * rowUnit,
-    bottom: rowResults.bottom * rowUnit,
+  let rowScores = {
+    top: 0,
+    middle: 0,
+    bottom: 0,
   };
+  let scoop = false;
+
+  if (singleFoul) {
+    rowScores = playerFouled
+      ? { top: -1, middle: -1, bottom: -1 }
+      : { top: 1, middle: 1, bottom: 1 };
+  } else if (!bothFouled) {
+    const playerWins = Object.values(rowResults).filter((result) => result > 0).length;
+    const opponentWins = Object.values(rowResults).filter((result) => result < 0).length;
+    scoop = playerWins === 3 || opponentWins === 3;
+    const rowUnit = scoop ? 2 : 1;
+
+    rowScores = {
+      top: rowResults.top * rowUnit,
+      middle: rowResults.middle * rowUnit,
+      bottom: rowResults.bottom * rowUnit,
+    };
+  }
 
   const headToHeadTotal = rowScores.top + rowScores.middle + rowScores.bottom;
+
+  state.playerScore += headToHeadTotal;
+  state.opponentScore -= headToHeadTotal;
 
   state.result = {
     ...playerResult,
@@ -584,6 +630,8 @@ function finishHand(state) {
     rows: rowResults,
     rowScores,
     scoop,
+    bothFouled,
+    singleFoul,
     headToHeadTotal,
     total: headToHeadTotal,
     informationSymmetric: state.isFantasyland,
@@ -627,6 +675,7 @@ export function doneStreet(state) {
   }
 
   resolveAutoDiscard(state);
+  sortFantasylandHand(state);
   lockStreet(state);
 
   if (state.firstPlayerThisHand === "human") {

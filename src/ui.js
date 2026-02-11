@@ -10,7 +10,7 @@ import {
 } from "./game.js";
 import { evaluateFiveCardHand, evaluateThreeCardTop } from "./evaluator.js";
 import { ROYALTY_TABLE } from "./royalties.js";
-import { ROWS, STREET_REQUIREMENTS } from "./state.js";
+import { RANK_VALUE, ROWS, STREET_REQUIREMENTS } from "./state.js";
 
 function getCardColorClass(card) {
   return card.suit === "♥" || card.suit === "♦" ? "red" : "black";
@@ -26,6 +26,26 @@ function parseDragPayload(event) {
 }
 
 export function createUI({ app, state, dispatch }) {
+
+  function getSuitSortValue(card) {
+    const suitOrder = { "♠": 0, "♥": 1, "♦": 2, "♣": 3 };
+    return suitOrder[card.suit] ?? 4;
+  }
+
+  function sortFantasylandCards(mode) {
+    state.fantasylandSortMode = mode;
+    state.handCards.sort((a, b) => {
+      if (mode === "suit") {
+        const suitDelta = getSuitSortValue(a) - getSuitSortValue(b);
+        if (suitDelta !== 0) {
+          return suitDelta;
+        }
+        return RANK_VALUE[b.rank] - RANK_VALUE[a.rank];
+      }
+
+      return RANK_VALUE[a.rank] - RANK_VALUE[b.rank];
+    });
+  }
   function getTopRoyalty(evaluation) {
     if (evaluation.rankName === "Three of a Kind") {
       return evaluation.tiebreak[0] + 8;
@@ -122,7 +142,12 @@ export function createUI({ app, state, dispatch }) {
           return `<div class="card playing-card opponent-card opponent-card-hidden"><span class="card-center">🂠</span></div>`;
         }
 
-        return `<div class="card playing-card ${getCardColorClass(card)} opponent-card" title="${card.code}"><span class="card-center">${card.code}</span></div>`;
+        return `
+          <div class="card playing-card ${getCardColorClass(card)} opponent-card" title="${card.code}">
+            <span class="card-corner">${card.rank}<small>${card.suit}</small></span>
+            <span class="card-center">${card.suit}</span>
+          </div>
+        `;
       })
       .join("");
 
@@ -139,36 +164,74 @@ export function createUI({ app, state, dispatch }) {
     `;
   }
 
-  function renderResult() {
+  function renderScoreboard() {
+    const rowLabels = { top: "Top", middle: "Middle", bottom: "Bottom" };
     if (!state.result) {
-      return "";
+      return `
+        <section class="panel score-panel">
+          <header class="panel-heading">
+            <h2>Scoreboard</h2>
+            <span class="panel-caption">Total hand and match score</span>
+          </header>
+          <p class="score-totals">Hand: <strong>—</strong> · Match: <strong>You ${state.playerScore}</strong> - <strong>Opponent ${state.opponentScore}</strong></p>
+          <p class="score-summary">Complete a hand to see row-by-row results.</p>
+        </section>
+      `;
     }
 
-    const rowLabels = { top: "Top", middle: "Middle", bottom: "Bottom" };
-    const rowLines = ["top", "middle", "bottom"].map((rowKey) => {
+    const rows = ["top", "middle", "bottom"].map((rowKey) => {
       const score = state.result.rowScores[rowKey];
       const scorePrefix = score > 0 ? "+" : "";
       const outcome = score > 0 ? "Win" : score < 0 ? "Loss" : "Push";
+      const playerEval = state.result[rowKey].evaluation.rankName;
       const opponentEval = state.result.opponent[rowKey];
-      return `<li>${rowLabels[rowKey]}: ${state.result[rowKey].evaluation.rankName} vs ${opponentEval.rankName} · ${outcome} (${scorePrefix}${score})</li>`;
+      return `
+        <tr>
+          <td>${rowLabels[rowKey]}</td>
+          <td>${playerEval}</td>
+          <td>${opponentEval.rankName}</td>
+          <td>${outcome}</td>
+          <td>${scorePrefix}${score}</td>
+        </tr>
+      `;
     });
 
-    const total = state.result.headToHeadTotal;
-    const totalPrefix = total > 0 ? "+" : "";
+    let summaryText = "Rows compared normally.";
+    if (state.result.bothFouled) {
+      summaryText = "Both players fouled. Score is 0-0.";
+    } else if (state.result.singleFoul) {
+      summaryText = state.result.fouled
+        ? "You fouled. You lose all rows (-1 each)."
+        : "Opponent fouled. You win all rows (+1 each).";
+    } else if (state.result.scoop) {
+      summaryText = "Scoop! 2 points per row.";
+    }
 
     return `
-      <section class="panel result-panel">
-        <h2>Hand Result</h2>
-        <p class="${total > 0 ? "success-text" : total < 0 ? "error-text" : "info-text"}">
-          <strong>Total: ${totalPrefix}${total}</strong>
-          ${state.result.scoop ? " · Scoop (2 points per row)" : " · 1 point per row won"}
+      <section class="panel score-panel">
+        <header class="panel-heading">
+          <h2>Scoreboard</h2>
+          <span class="panel-caption">Total hand and match score</span>
+        </header>
+        <p class="score-totals">
+          Hand: <strong>${state.result.headToHeadTotal > 0 ? "+" : ""}${state.result.headToHeadTotal}</strong>
+          · Match: <strong>You ${state.playerScore}</strong> - <strong>Opponent ${state.opponentScore}</strong>
         </p>
-        <ul>
-          ${rowLines.join("")}
-        </ul>
+        <p class="score-summary">${summaryText}</p>
+        <div class="score-table-wrap">
+          <table class="score-table">
+            <thead>
+              <tr><th>Row</th><th>You</th><th>Opponent</th><th>Outcome</th><th>Points</th></tr>
+            </thead>
+            <tbody>
+              ${rows.join("")}
+            </tbody>
+          </table>
+        </div>
       </section>
     `;
   }
+
 
   function renderStreetHistory() {
     if (state.isFantasyland || state.dealtByStreet.fantasyland) {
@@ -224,6 +287,15 @@ export function createUI({ app, state, dispatch }) {
         doneStreet(state);
       });
     });
+
+    document.querySelectorAll("[data-sort-mode]").forEach((button) => {
+      button.addEventListener("click", () => {
+        dispatch(() => {
+          sortFantasylandCards(button.dataset.sortMode || "value");
+        });
+      });
+    });
+
 
     if (vsComputerToggle) {
       vsComputerToggle.addEventListener("change", (event) => {
@@ -350,6 +422,13 @@ export function createUI({ app, state, dispatch }) {
             <h2>${state.isFantasyland ? "Fantasyland Pool" : "Draw Area"}</h2>
             <span class="panel-caption">${state.isFantasyland ? "Unplaced cards (extras auto-burn on Done)" : "Current street cards"}</span>
           </header>
+          ${state.isFantasyland ? `
+            <div class="sort-controls">
+              <span>Sort:</span>
+              <button class="sort-btn ${state.fantasylandSortMode === "value" ? "active" : ""}" data-sort-mode="value" type="button">Value (2→A)</button>
+              <button class="sort-btn ${state.fantasylandSortMode === "suit" ? "active" : ""}" data-sort-mode="suit" type="button">Suit (♠ ♥ ♦ ♣)</button>
+            </div>
+          ` : ""}
           <div class="hand-zone" data-drop-zone="hand">
             ${state.handCards.map((card) => renderCard(card, "hand")).join("")}
           </div>
@@ -366,9 +445,11 @@ export function createUI({ app, state, dispatch }) {
             ${renderRow("bottom")}
           </section>
 
+          ${renderScoreboard()}
+
           <section class="panel board-panel opponent-board-panel">
             <header class="panel-heading">
-              <h2>Opponent Board (revealed cards)</h2>
+              <h2>Opponent Board</h2>
               <span class="panel-caption">Cards are hidden during Fantasyland until showdown</span>
             </header>
             ${renderOpponentRow("top")}
@@ -377,7 +458,6 @@ export function createUI({ app, state, dispatch }) {
           </section>
         </section>
 
-        ${renderResult()}
 
         <section class="panel history-panel">
           <header class="panel-heading">
@@ -389,7 +469,7 @@ export function createUI({ app, state, dispatch }) {
 
         <section class="panel rules-panel">
           <h2>Rules (current)</h2>
-          <p>Foul rule: Bottom row must be at least as strong as Middle, and Middle must be at least as strong as Top. Fouled hands score 0 royalties.</p>
+          <p>Foul rule: Bottom row must be at least as strong as Middle, and Middle must be at least as strong as Top. If one player fouls, they lose all rows; if both foul, the hand scores 0-0.</p>
           <p><strong>Fantasyland</strong>: Qualify with valid QQ+/trips on top. QQ=13 cards, KK=14, AA=15, trips=16. No consecutive Fantasyland hands.</p>
           <h3>Royalties</h3>
           <p><strong>Top (3 cards)</strong>: Pair 66=1, 77=2, 88=3, 99=4, TT=5, JJ=6, QQ=7, KK=8, AA=9. Trips: 222=10 ... AAA=22.</p>
