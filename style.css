@@ -304,8 +304,8 @@ button:disabled {
   border: 1px solid #c8d3ea;
   background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
   border-radius: 9px;
-  width: 46px;
-  height: 66px;
+  width: 50px;
+  height: 72px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -316,7 +316,7 @@ button:disabled {
   position: absolute;
   top: 6px;
   left: 6px;
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 800;
   line-height: 0.95;
   display: flex;
@@ -326,13 +326,13 @@ button:disabled {
 }
 
 .playing-card .card-corner small {
-  font-size: 0.72rem;
+  display: none;
   margin-top: 1px;
   font-weight: 700;
 }
 
 .playing-card .card-center {
-  font-size: 1.3rem;
+  font-size: 1.45rem;
   line-height: 1;
   opacity: 0.92;
 }
@@ -379,6 +379,19 @@ button:disabled {
 
 .score-table th {
   background: #f4f7ff;
+}
+
+.score-section-row th {
+  background: #eef3ff;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.score-total-row th,
+.score-total-row td {
+  font-weight: 700;
+  background: #f8faff;
 }
 .result-panel ul,
 .history-panel ul {

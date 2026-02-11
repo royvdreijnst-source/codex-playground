@@ -6,6 +6,7 @@ import {
   doneStreet,
   getStreetProgress,
   isBoardComplete,
+  resetFantasylandPlacement,
   startHand,
 } from "./game.js";
 import { evaluateFiveCardHand, evaluateThreeCardTop } from "./evaluator.js";
@@ -97,7 +98,7 @@ export function createUI({ app, state, dispatch }) {
         title="${card.code}"
       >
         <span class="card-corner">${card.rank}<small>${card.suit}</small></span>
-        <span class="card-center">${card.suit}</span>
+        <span class="card-center">${card.rank}${card.suit}</span>
       </button>
     `;
   }
@@ -145,7 +146,7 @@ export function createUI({ app, state, dispatch }) {
         return `
           <div class="card playing-card ${getCardColorClass(card)} opponent-card" title="${card.code}">
             <span class="card-corner">${card.rank}<small>${card.suit}</small></span>
-            <span class="card-center">${card.suit}</span>
+            <span class="card-center">${card.rank}${card.suit}</span>
           </div>
         `;
       })
@@ -165,7 +166,7 @@ export function createUI({ app, state, dispatch }) {
   }
 
   function renderScoreboard() {
-    const rowLabels = { top: "Top", middle: "Middle", bottom: "Bottom" };
+    const rowLabels = { top: "Top Row", middle: "Middle Row", bottom: "Bottom Row" };
     if (!state.result) {
       return `
         <section class="panel score-panel">
@@ -181,20 +182,22 @@ export function createUI({ app, state, dispatch }) {
 
     const rows = ["top", "middle", "bottom"].map((rowKey) => {
       const score = state.result.rowScores[rowKey];
-      const scorePrefix = score > 0 ? "+" : "";
-      const outcome = score > 0 ? "Win" : score < 0 ? "Loss" : "Push";
+      const playerScore = score > 0 ? `+${score}` : `${score}`;
+      const opponentScore = score === 0 ? "0" : `${-score}`;
       const playerEval = state.result[rowKey].evaluation.rankName;
       const opponentEval = state.result.opponent[rowKey];
       return `
         <tr>
-          <td>${rowLabels[rowKey]}</td>
           <td>${playerEval}</td>
+          <td>${playerScore}</td>
+          <td>${opponentScore}</td>
           <td>${opponentEval.rankName}</td>
-          <td>${outcome}</td>
-          <td>${scorePrefix}${score}</td>
         </tr>
       `;
     });
+
+    const totalPlayer = state.result.headToHeadTotal > 0 ? `+${state.result.headToHeadTotal}` : `${state.result.headToHeadTotal}`;
+    const totalOpponent = state.result.headToHeadTotal === 0 ? "0" : `${-state.result.headToHeadTotal}`;
 
     let summaryText = "Rows compared normally.";
     if (state.result.bothFouled) {
@@ -221,10 +224,16 @@ export function createUI({ app, state, dispatch }) {
         <div class="score-table-wrap">
           <table class="score-table">
             <thead>
-              <tr><th>Row</th><th>You</th><th>Opponent</th><th>Outcome</th><th>Points</th></tr>
+              <tr><th>Hand rank player</th><th>Resulting Score if Player has &gt; 0 points</th><th>Resulting Score if Opponent has &gt; 0 points</th><th>Hand Rank Opponent</th></tr>
             </thead>
             <tbody>
-              ${rows.join("")}
+              <tr class="score-section-row"><th colspan="4">${rowLabels.top}</th></tr>
+              ${rows[0]}
+              <tr class="score-section-row"><th colspan="4">${rowLabels.middle}</th></tr>
+              ${rows[1]}
+              <tr class="score-section-row"><th colspan="4">${rowLabels.bottom}</th></tr>
+              ${rows[2]}
+              <tr class="score-total-row"><th>TOTAL score</th><td>${totalPlayer}</td><td>${totalOpponent}</td><th></th></tr>
             </tbody>
           </table>
         </div>
@@ -271,6 +280,7 @@ export function createUI({ app, state, dispatch }) {
   function bindEvents() {
     const newHandButton = document.getElementById("new-hand");
     const doneStreetButton = document.getElementById("done-street");
+    const resetFantasylandButton = document.getElementById("reset-fantasyland");
     const vsComputerToggle = document.getElementById("play-vs-computer");
     if (!newHandButton || !doneStreetButton) {
       return;
@@ -287,6 +297,14 @@ export function createUI({ app, state, dispatch }) {
         doneStreet(state);
       });
     });
+
+    if (resetFantasylandButton) {
+      resetFantasylandButton.addEventListener("click", () => {
+        dispatch(() => {
+          resetFantasylandPlacement(state);
+        });
+      });
+    }
 
     document.querySelectorAll("[data-sort-mode]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -394,6 +412,7 @@ export function createUI({ app, state, dispatch }) {
         <section class="panel controls-panel">
           <div class="control-row">
             <button id="done-street" type="button" ${state.isFantasyland ? (fantasylandDoneDisabled ? "disabled" : "") : (state.handFinished ? "disabled" : "")}>Done</button>
+            ${state.isFantasyland ? `<button id="reset-fantasyland" type="button" ${state.handFinished ? "disabled" : ""}>Reset FL placement</button>` : ""}
             <label class="toggle-inline" for="play-vs-computer">
               <input id="play-vs-computer" type="checkbox" ${state.playVsComputer ? "checked" : ""} />
               Play vs Computer

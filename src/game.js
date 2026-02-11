@@ -415,6 +415,23 @@ export function applyMoveRowCardBackToHand(state, cardId) {
   }
 }
 
+export function resetFantasylandPlacement(state) {
+  if (!state.isFantasyland || state.handFinished) {
+    return;
+  }
+
+  const returned = [
+    ...state.board.top.splice(0),
+    ...state.board.middle.splice(0),
+    ...state.board.bottom.splice(0),
+  ];
+
+  state.handCards.push(...returned);
+  state.currentStreetCardIds = new Set(state.handCards.map((card) => card.id));
+  sortFantasylandHand(state);
+  setStatus(state, "Fantasyland placements reset.", "info");
+}
+
 function resolveAutoDiscard(state) {
   const requirement = STREET_REQUIREMENTS[state.currentStreet];
   if (requirement.discard === 0) {
@@ -648,6 +665,25 @@ function finishHand(state) {
   finalizeFantasylandOutcome(state, playerFouled, opponentFouled);
 }
 
+function autoPlayOpponentFullHand(state) {
+  if (!state.playVsComputer || state.handFinished) {
+    return;
+  }
+
+  if (state.isFantasyland) {
+    for (let street = 1; street <= 5; street += 1) {
+      startOpponentStreet(state, street);
+      state.currentStreet = street;
+      const move = chooseMove(state, "opponent");
+      applyOpponentMove(state, move);
+    }
+    state.opponentLog = "Opponent played all streets.";
+    return;
+  }
+
+  autoPlayOpponentStreet(state);
+}
+
 export function advanceStreet(state) {
   const nextStreet = state.currentStreet + 1;
   startStreet(state, nextStreet);
@@ -670,6 +706,7 @@ export function doneStreet(state) {
     state.burnedCards = state.handCards.map((card) => card.code);
     state.handCards = [];
     state.currentStreetCardIds = new Set();
+    autoPlayOpponentFullHand(state);
     finishHand(state);
     return;
   }
