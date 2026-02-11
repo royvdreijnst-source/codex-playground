@@ -75,6 +75,7 @@ function resetHand() {
   state.handFinished = false;
   state.result = null;
   startStreet(1);
+  draw();
 }
 
 function startStreet(streetNumber) {
