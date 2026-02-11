@@ -1,5 +1,9 @@
 const app = document.getElementById("app");
 
+if (!app) {
+  throw new Error("App mount element #app was not found.");
+}
+
 const SUITS = ["♠", "♥", "♦", "♣"];
 const RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 const RANK_VALUE = Object.fromEntries(RANKS.map((rank, index) => [rank, index + 2]));
@@ -212,7 +216,7 @@ function getStreetProgress() {
     state.streetStartBoardCounts.top -
     state.streetStartBoardCounts.middle -
     state.streetStartBoardCounts.bottom;
-  const discardedNow = state.discardedByStreet[state.currentStreet].length;
+  const discardedNow = (state.discardedByStreet[state.currentStreet] || []).length;
   return { placedNow, discardedNow };
 }
 
@@ -642,9 +646,17 @@ function draw() {
 }
 
 function bindEvents() {
-  document.getElementById("new-hand").addEventListener("click", resetHand);
-  document.getElementById("done-street").addEventListener("click", onDoneStreet);
-  document.getElementById("discard-mode").addEventListener("change", (event) => {
+  const newHandButton = document.getElementById("new-hand");
+  const doneStreetButton = document.getElementById("done-street");
+  const discardModeInput = document.getElementById("discard-mode");
+
+  if (!newHandButton || !doneStreetButton || !discardModeInput) {
+    return;
+  }
+
+  newHandButton.addEventListener("click", resetHand);
+  doneStreetButton.addEventListener("click", onDoneStreet);
+  discardModeInput.addEventListener("change", (event) => {
     state.discardMode = event.target.checked;
   });
 
@@ -718,6 +730,10 @@ function setupDragAndDrop() {
   });
 
   const handZone = document.querySelector("[data-drop-zone='hand']");
+  if (!handZone) {
+    return;
+  }
+
   setupDropZoneVisuals(handZone);
   handZone.addEventListener("drop", (event) => {
     event.preventDefault();
@@ -732,6 +748,10 @@ function setupDragAndDrop() {
   });
 
   const discardZone = document.querySelector("[data-drop-zone='discard']");
+  if (!discardZone) {
+    return;
+  }
+
   setupDropZoneVisuals(discardZone);
   discardZone.addEventListener("drop", (event) => {
     event.preventDefault();
