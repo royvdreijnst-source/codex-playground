@@ -288,11 +288,6 @@ button:disabled {
   background: linear-gradient(180deg, #e8edf7 0%, #dce4f3 100%);
 }
 
-.opponent-card .card-center {
-  font-size: 0.95rem;
-  font-weight: 700;
-}
-
 .card {
   border: 0;
   background: transparent;
@@ -312,24 +307,11 @@ button:disabled {
   box-shadow: 0 2px 3px rgba(17, 24, 39, 0.12);
 }
 
-.playing-card .card-corner {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  font-size: 1.12rem;
-  font-weight: 800;
-  line-height: 0.95;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 16px;
-}
-
-
-.playing-card .card-center {
-  font-size: 1.6rem;
+.playing-card .card-main {
+  font-size: 1.9rem;
   line-height: 1;
-  opacity: 0.92;
+  font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 .card.draggable { cursor: grab; }
@@ -349,44 +331,54 @@ button:disabled {
 }
 
 .score-totals {
-  margin: 0;
-  font-weight: 600;
+  margin: 8px 0 0;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .score-summary {
-  margin: 6px 0 8px;
-  color: #334155;
-  font-size: 0.86rem;
+  margin: 8px 0 0;
+  color: #475467;
+  font-size: 0.8rem;
+  text-align: center;
 }
 
-.score-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.83rem;
+.digital-scoreboard {
+  margin: 6px auto 0;
+  border: 2px solid #213563;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, #0d1632 0%, #131f45 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 
-.score-table th,
-.score-table td {
-  padding: 4px 6px;
-  border: 1px solid #d7dfef;
-  text-align: left;
+.digital-lane {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  min-width: 86px;
 }
 
-.score-table th {
-  background: #f4f7ff;
-}
-
-.score-section-row th {
-  background: #eef3ff;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.score-total-row th,
-.score-total-row td {
+.digital-label {
+  font-size: 0.62rem;
   font-weight: 700;
-  background: #f8faff;
+  color: #99a8d6;
+  letter-spacing: 0.1em;
+}
+
+.digital-value,
+.digital-separator {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 700;
+  color: #ff4d4d;
+  text-shadow: 0 0 9px rgba(255, 77, 77, 0.45);
 }
 .result-panel ul,
 .history-panel ul {

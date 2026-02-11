@@ -97,8 +97,7 @@ export function createUI({ app, state, dispatch }) {
         type="button"
         title="${card.code}"
       >
-        <span class="card-corner">${card.rank}${card.suit}</span>
-        <span class="card-center">${card.rank}${card.suit}</span>
+        <span class="card-main">${card.rank}${card.suit}</span>
       </button>
     `;
   }
@@ -140,13 +139,12 @@ export function createUI({ app, state, dispatch }) {
     const cards = displayBoard[rowKey]
       .map((card) => {
         if (hidden) {
-          return `<div class="card playing-card opponent-card opponent-card-hidden"><span class="card-center">🂠</span></div>`;
+          return `<div class="card playing-card opponent-card opponent-card-hidden"><span class="card-main">🂠</span></div>`;
         }
 
         return `
           <div class="card playing-card ${getCardColorClass(card)} opponent-card" title="${card.code}">
-            <span class="card-corner">${card.rank}${card.suit}</span>
-            <span class="card-center">${card.rank}${card.suit}</span>
+            <span class="card-main">${card.rank}${card.suit}</span>
           </div>
         `;
       })
@@ -166,39 +164,31 @@ export function createUI({ app, state, dispatch }) {
   }
 
   function renderScoreboard() {
+    const handTotal = state.result?.headToHeadTotal ?? 0;
+    const handSigned = handTotal > 0 ? `+${handTotal}` : `${handTotal}`;
+
     if (!state.result) {
       return `
         <section class="panel score-panel">
           <header class="panel-heading">
             <h2>Scoreboard</h2>
-            <span class="panel-caption">Total hand and match score</span>
+            <span class="panel-caption">Digital total score</span>
           </header>
-          <p class="score-totals">Hand: <strong>—</strong> · Match: <strong>You ${state.playerScore}</strong> - <strong>Opponent ${state.opponentScore}</strong></p>
-          <p class="score-summary">Complete a hand to see row-by-row results.</p>
+          <div class="digital-scoreboard" aria-label="Match total score">
+            <div class="digital-lane">
+              <span class="digital-label">YOU</span>
+              <span class="digital-value">${state.playerScore}</span>
+            </div>
+            <span class="digital-separator">:</span>
+            <div class="digital-lane">
+              <span class="digital-label">CPU</span>
+              <span class="digital-value">${state.opponentScore}</span>
+            </div>
+          </div>
+          <p class="score-summary">Hand total: ${handSigned}</p>
         </section>
       `;
     }
-
-    const rows = ["top", "middle", "bottom"].map((rowKey) => {
-      const rowScore = state.result.rowScores[rowKey];
-      const rowRoyalty = state.result.royalties?.[rowKey] ?? 0;
-      const score = rowScore + rowRoyalty;
-      const playerScore = score > 0 ? `+${score}` : `${score}`;
-      const opponentScore = score === 0 ? "0" : `${-score}`;
-      const playerEval = state.result[rowKey].evaluation.rankName;
-      const opponentEval = state.result.opponent[rowKey];
-      return `
-        <tr>
-          <td>${playerEval}</td>
-          <td>${playerScore}</td>
-          <td>${opponentScore}</td>
-          <td>${opponentEval.rankName}</td>
-        </tr>
-      `;
-    });
-
-    const totalPlayer = state.result.headToHeadTotal > 0 ? `+${state.result.headToHeadTotal}` : `${state.result.headToHeadTotal}`;
-    const totalOpponent = state.result.headToHeadTotal === 0 ? "0" : `${-state.result.headToHeadTotal}`;
 
     let summaryText = "Rows compared normally.";
     if (state.result.bothFouled) {
@@ -215,28 +205,21 @@ export function createUI({ app, state, dispatch }) {
       <section class="panel score-panel">
         <header class="panel-heading">
           <h2>Scoreboard</h2>
-          <span class="panel-caption">Total hand and match score</span>
+          <span class="panel-caption">Digital total score</span>
         </header>
-        <p class="score-totals">
-          Hand: <strong>${state.result.headToHeadTotal > 0 ? "+" : ""}${state.result.headToHeadTotal}</strong>
-          · Match: <strong>You ${state.playerScore}</strong> - <strong>Opponent ${state.opponentScore}</strong>
-        </p>
-        <p class="score-summary">${summaryText}</p>
-        <div class="score-table-wrap">
-          <table class="score-table">
-            <thead>
-              <tr><th>Player Hand</th><th>Player Score</th><th>Opponent Score</th><th>Opponent Hand</th></tr>
-            </thead>
-            <tbody>
-              ${rows[0]}
-              <tr class="score-section-row"><th colspan="4"></th></tr>
-              ${rows[1]}
-              <tr class="score-section-row"><th colspan="4"></th></tr>
-              ${rows[2]}
-              <tr class="score-total-row"><th>TOTAL score</th><td>${totalPlayer}</td><td>${totalOpponent}</td><th></th></tr>
-            </tbody>
-          </table>
+        <div class="digital-scoreboard" aria-label="Match total score">
+          <div class="digital-lane">
+            <span class="digital-label">YOU</span>
+            <span class="digital-value">${state.playerScore}</span>
+          </div>
+          <span class="digital-separator">:</span>
+          <div class="digital-lane">
+            <span class="digital-label">CPU</span>
+            <span class="digital-value">${state.opponentScore}</span>
+          </div>
         </div>
+        <p class="score-totals">Hand total: <strong>${handSigned}</strong></p>
+        <p class="score-summary">${summaryText}</p>
       </section>
     `;
   }
