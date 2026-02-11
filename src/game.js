@@ -52,7 +52,6 @@ export function startStreet(state, streetNumber) {
   };
   state.dealtByStreet[streetNumber] = dealt.map((card) => card.code);
   state.discardedByStreet[streetNumber] = [];
-  state.discardMode = false;
 }
 
 export function startHand(state) {
@@ -124,28 +123,20 @@ export function applyMoveRowCardBackToHand(state, cardId) {
   }
 }
 
-export function applyDiscard(state, cardId) {
-  if (!state.currentStreetCardIds.has(cardId)) {
+
+function resolveAutoDiscard(state) {
+  const requirement = STREET_REQUIREMENTS[state.currentStreet];
+  if (requirement.discard === 0) {
     return;
   }
 
-  const fromHandIndex = state.handCards.findIndex((card) => card.id === cardId);
-  if (fromHandIndex >= 0) {
-    const [card] = state.handCards.splice(fromHandIndex, 1);
-    state.discardedByStreet[state.currentStreet].push(card.code);
-    state.currentStreetCardIds.delete(card.id);
+  if (state.handCards.length !== requirement.discard) {
     return;
   }
 
-  for (const key of Object.keys(state.board)) {
-    const rowIndex = findCardInRow(state, key, cardId);
-    if (rowIndex >= 0) {
-      const [card] = state.board[key].splice(rowIndex, 1);
-      state.discardedByStreet[state.currentStreet].push(card.code);
-      state.currentStreetCardIds.delete(card.id);
-      return;
-    }
-  }
+  const [card] = state.handCards.splice(0, 1);
+  state.discardedByStreet[state.currentStreet].push(card.code);
+  state.currentStreetCardIds.delete(card.id);
 }
 
 export function getStreetProgress(state) {
@@ -160,19 +151,19 @@ export function getStreetProgress(state) {
 
 export function canAdvanceStreet(state) {
   const requirement = STREET_REQUIREMENTS[state.currentStreet];
-  const { placedNow, discardedNow } = getStreetProgress(state);
+  const { placedNow } = getStreetProgress(state);
 
-  if (placedNow !== requirement.place || discardedNow !== requirement.discard) {
+  if (placedNow !== requirement.place) {
     return {
       ok: false,
-      message: `Street ${state.currentStreet} needs: ${requirement.text}. Current: placed ${placedNow}, discarded ${discardedNow}.`,
+      message: `Street ${state.currentStreet} needs: ${requirement.text}. Current: placed ${placedNow}.`,
     };
   }
 
-  if (state.currentStreet < 5 && state.handCards.length !== 0) {
+  if (state.handCards.length !== requirement.discard) {
     return {
       ok: false,
-      message: `Street ${state.currentStreet} still has undeclared cards in hand.`,
+      message: `Street ${state.currentStreet} still has ${state.handCards.length} card(s) in hand; expected ${requirement.discard} before auto-discard.`,
     };
   }
 
@@ -237,6 +228,7 @@ export function doneStreet(state) {
     return;
   }
 
+  resolveAutoDiscard(state);
   lockStreet(state);
 
   if (state.currentStreet === 5) {
@@ -255,6 +247,3 @@ export function doneStreet(state) {
   advanceStreet(state);
 }
 
-export function setDiscardMode(state, enabled) {
-  state.discardMode = enabled;
-}

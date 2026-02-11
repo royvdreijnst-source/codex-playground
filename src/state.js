@@ -10,10 +10,10 @@ export const ROWS = {
 
 export const STREET_REQUIREMENTS = {
   1: { deal: 5, place: 5, discard: 0, text: "Place 5" },
-  2: { deal: 3, place: 2, discard: 1, text: "Place 2, Discard 1" },
-  3: { deal: 3, place: 2, discard: 1, text: "Place 2, Discard 1" },
-  4: { deal: 3, place: 2, discard: 1, text: "Place 2, Discard 1" },
-  5: { deal: 3, place: 2, discard: 1, text: "Place 2, Discard 1" },
+  2: { deal: 3, place: 2, discard: 1, text: "Place 2 (1 auto-discard)" },
+  3: { deal: 3, place: 2, discard: 1, text: "Place 2 (1 auto-discard)" },
+  4: { deal: 3, place: 2, discard: 1, text: "Place 2 (1 auto-discard)" },
+  5: { deal: 3, place: 2, discard: 1, text: "Place 2 (1 auto-discard)" },
 };
 
 function baseState() {
@@ -27,7 +27,6 @@ function baseState() {
     dealtByStreet: {},
     discardedByStreet: {},
     lockedStreetCards: new Set(),
-    discardMode: false,
     message: "",
     statusType: "info",
     handFinished: false,

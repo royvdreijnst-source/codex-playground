@@ -1,12 +1,10 @@
 import {
-  applyDiscard,
   applyDropToRow,
   applyMoveRowCard,
   applyMoveRowCardBackToHand,
   canDragCard,
   doneStreet,
   getStreetProgress,
-  setDiscardMode,
   startHand,
 } from "./game.js";
 import { ROWS, STREET_REQUIREMENTS } from "./state.js";
@@ -29,14 +27,17 @@ export function createUI({ app, state, dispatch, resetState }) {
     const draggable = canDragCard(state, card.id);
     return `
       <button
-        class="card ${getCardColorClass(card)} ${draggable ? "draggable" : "locked-card"}"
+        class="card playing-card ${getCardColorClass(card)} ${draggable ? "draggable" : "locked-card"}"
         data-card-id="${card.id}"
         data-drag-source="${source}"
         data-row="${rowKey}"
         draggable="${draggable}"
         type="button"
         title="${card.code}"
-      >${card.code}</button>
+      >
+        <span class="card-corner">${card.rank}<small>${card.suit}</small></span>
+        <span class="card-center">${card.suit}</span>
+      </button>
     `;
   }
 
@@ -85,7 +86,7 @@ export function createUI({ app, state, dispatch, resetState }) {
       const discarded = state.discardedByStreet[street] && state.discardedByStreet[street].length
         ? state.discardedByStreet[street].join(" ")
         : "-";
-      lines.push(`<li>Street ${street}: Dealt [${dealt}] | Discarded [${discarded}]</li>`);
+      lines.push(`<li>Street ${street}: Dealt [${dealt}] | Auto-discard [${discarded}]</li>`);
     }
     return `<ul>${lines.join("")}</ul>`;
   }
@@ -93,9 +94,7 @@ export function createUI({ app, state, dispatch, resetState }) {
   function bindEvents() {
     const newHandButton = document.getElementById("new-hand");
     const doneStreetButton = document.getElementById("done-street");
-    const discardModeInput = document.getElementById("discard-mode");
-
-    if (!newHandButton || !doneStreetButton || !discardModeInput) {
+    if (!newHandButton || !doneStreetButton) {
       return;
     }
 
@@ -109,23 +108,6 @@ export function createUI({ app, state, dispatch, resetState }) {
     doneStreetButton.addEventListener("click", () => {
       dispatch(() => {
         doneStreet(state);
-      });
-    });
-
-    discardModeInput.addEventListener("change", (event) => {
-      dispatch(() => {
-        setDiscardMode(state, event.target.checked);
-      });
-    });
-
-    document.querySelectorAll(".card").forEach((cardButton) => {
-      cardButton.addEventListener("click", () => {
-        const cardId = cardButton.dataset.cardId;
-        if (state.discardMode && canDragCard(state, cardId) && !state.handFinished) {
-          dispatch(() => {
-            applyDiscard(state, cardId);
-          });
-        }
       });
     });
   }
@@ -201,26 +183,6 @@ export function createUI({ app, state, dispatch, resetState }) {
         applyMoveRowCardBackToHand(state, payload.cardId);
       });
     });
-
-    const discardZone = document.querySelector("[data-drop-zone='discard']");
-    if (!discardZone) {
-      return;
-    }
-
-    setupDropZoneVisuals(discardZone);
-    discardZone.addEventListener("drop", (event) => {
-      event.preventDefault();
-      discardZone.classList.remove("drop-active");
-      const payload = parseDragPayload(event);
-
-      if (!payload.cardId || !canDragCard(state, payload.cardId)) {
-        return;
-      }
-
-      dispatch(() => {
-        applyDiscard(state, payload.cardId);
-      });
-    });
   }
 
   function render() {
@@ -228,20 +190,19 @@ export function createUI({ app, state, dispatch, resetState }) {
     const progress = getStreetProgress(state);
 
     app.innerHTML = `
+      <div class="outside-actions">
+        <button id="new-hand" type="button">New Hand</button>
+      </div>
+
       <section class="game-layout">
         <section class="panel controls-panel">
           <div class="control-row">
-            <button id="new-hand" type="button">New Hand</button>
             <button id="done-street" type="button" ${state.handFinished ? "disabled" : ""}>Done</button>
-            <label class="toggle-wrap">
-              <input id="discard-mode" type="checkbox" ${state.discardMode ? "checked" : ""} ${state.handFinished ? "disabled" : ""}/>
-              Discard mode (click card)
-            </label>
           </div>
           <div class="street-meta">
             <p class="street-title">Street ${state.currentStreet} / 5</p>
             <p class="street-requirement">Requirement: ${requirement.text}</p>
-            <p class="street-progress">Placed this street: ${progress.placedNow}/${requirement.place} · Discarded: ${progress.discardedNow}/${requirement.discard}</p>
+            <p class="street-progress">Placed this street: ${progress.placedNow}/${requirement.place} · Auto-discarded: ${progress.discardedNow}/${requirement.discard}</p>
           </div>
           <p class="status ${state.statusType}">${state.message}</p>
         </section>
@@ -266,23 +227,12 @@ export function createUI({ app, state, dispatch, resetState }) {
           ${renderRow("bottom")}
         </section>
 
-        <section class="panel discard-panel">
-          <header class="panel-heading">
-            <h2>Discard Zone</h2>
-            <span class="panel-caption">Streets 2-5 discard one current-street card</span>
-          </header>
-          <div class="discard-zone" data-drop-zone="discard">
-            <strong>Drop card to discard</strong>
-            <p>Only cards from this street can be discarded.</p>
-          </div>
-        </section>
-
         ${renderResult()}
 
         <section class="panel history-panel">
           <header class="panel-heading">
             <h2>Street History</h2>
-            <span class="panel-caption">Dealt and discarded cards</span>
+            <span class="panel-caption">Dealt cards and auto-discards</span>
           </header>
           ${renderStreetHistory()}
         </section>
