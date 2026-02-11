@@ -618,8 +618,9 @@ function finishHand(state) {
 
   if (singleFoul) {
     rowScores = playerFouled
-      ? { top: -1, middle: -1, bottom: -1 }
-      : { top: 1, middle: 1, bottom: 1 };
+      ? { top: -2, middle: -2, bottom: -2 }
+      : { top: 2, middle: 2, bottom: 2 };
+    scoop = true;
   } else if (!bothFouled) {
     const playerWins = Object.values(rowResults).filter((result) => result > 0).length;
     const opponentWins = Object.values(rowResults).filter((result) => result < 0).length;

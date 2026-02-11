@@ -195,8 +195,8 @@ export function createUI({ app, state, dispatch }) {
       summaryText = "Both players fouled. Score is 0-0.";
     } else if (state.result.singleFoul) {
       summaryText = state.result.fouled
-        ? "You fouled. You lose all rows; royalties are still applied."
-        : "Opponent fouled. You win all rows; royalties are still applied.";
+        ? "You fouled. Opponent scoops (+2 per row) and royalties are still applied."
+        : "Opponent fouled. You scoop (+2 per row) and royalties are still applied.";
     } else if (state.result.scoop) {
       summaryText = "Scoop! 2 points per row.";
     }
@@ -471,7 +471,7 @@ export function createUI({ app, state, dispatch }) {
 
         <section class="panel rules-panel">
           <h2>Rules (current)</h2>
-          <p>Foul rule: Bottom row must be at least as strong as Middle, and Middle must be at least as strong as Top. If one player fouls, they lose all rows; if both foul, the hand scores 0-0.</p>
+          <p>Foul rule: Bottom row must be at least as strong as Middle, and Middle must be at least as strong as Top. If one player fouls, the opponent scoops (+2 per row, -2 per row to fouler); if both foul, the hand scores 0-0.</p>
           <p><strong>Fantasyland</strong>: Qualify with valid QQ+/trips on top. QQ=13 cards, KK=14, AA=15, trips=16. No consecutive Fantasyland hands.</p>
           <h3>Royalties</h3>
           <p><strong>Top (3 cards)</strong>: Pair 66=1, 77=2, 88=3, 99=4, TT=5, JJ=6, QQ=7, KK=8, AA=9. Trips: 222=10 ... AAA=22.</p>
