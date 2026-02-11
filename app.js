@@ -510,16 +510,20 @@ function renderCard(card, source, rowKey = "") {
 }
 
 function renderRow(rowKey) {
-  const cards = state.board[rowKey]
-    .map((card) => renderCard(card, "row", rowKey))
-    .join("");
+  const cards = state.board[rowKey].map((card) => renderCard(card, "row", rowKey));
+  const emptySlots = Math.max(0, ROWS[rowKey].max - state.board[rowKey].length);
+
+  for (let i = 0; i < emptySlots; i += 1) {
+    cards.push('<span class="card-slot" aria-hidden="true"></span>');
+  }
 
   return `
-    <section class="row" data-row="${rowKey}">
-      <header>
-        <h3>${ROWS[rowKey].label} (${state.board[rowKey].length}/${ROWS[rowKey].max})</h3>
+    <section class="board-row" data-row="${rowKey}">
+      <header class="board-row-header">
+        <h3>${ROWS[rowKey].label}</h3>
+        <span class="row-counter">${state.board[rowKey].length}/${ROWS[rowKey].max}</span>
       </header>
-      <div class="row-cards">${cards}</div>
+      <div class="row-cards">${cards.join("")}</div>
     </section>
   `;
 }
@@ -566,37 +570,47 @@ function draw() {
 
   app.innerHTML = `
     <main class="layout">
-      <section class="panel controls-panel">
-        <div class="control-row">
-          <button id="new-hand" type="button">New Hand</button>
-          <button id="done-street" type="button" ${state.handFinished ? "disabled" : ""}>Done</button>
-          <label class="toggle-wrap">
-            <input id="discard-mode" type="checkbox" ${state.discardMode ? "checked" : ""} ${state.handFinished ? "disabled" : ""}/>
-            Discard mode (click card)
-          </label>
-        </div>
-        <p class="street-title">Street ${state.currentStreet} / 5</p>
-        <p class="street-requirement">Requirement: ${requirement.text}</p>
-        <p class="street-progress">Placed this street: ${progress.placedNow}/${requirement.place} | Discarded: ${progress.discardedNow}/${requirement.discard}</p>
-        <p class="status ${state.statusType}">${state.message}</p>
-      </section>
+      <div class="top-grid">
+        <section class="panel hand-panel">
+          <div class="panel-heading">
+            <h2>Hand / Draw</h2>
+            <span class="street-chip">Street ${state.currentStreet} / 5</span>
+          </div>
+          <p class="street-requirement">Requirement: ${requirement.text}</p>
+          <p class="street-progress">Placed this street: ${progress.placedNow}/${requirement.place} · Discarded: ${progress.discardedNow}/${requirement.discard}</p>
+          <div class="hand-zone" data-drop-zone="hand">
+            ${state.handCards.map((card) => renderCard(card, "hand")).join("")}
+          </div>
+        </section>
 
-      <section class="panel hand-panel">
-        <h2>Current Street Cards</h2>
-        <div class="hand-zone" data-drop-zone="hand">
-          ${state.handCards.map((card) => renderCard(card, "hand")).join("")}
-        </div>
-        <div class="discard-zone" data-drop-zone="discard">
-          <strong>Discard Area</strong>
-          <p>Drop one current-street card here (streets 2-5).</p>
-        </div>
-      </section>
+        <section class="panel controls-panel">
+          <h2>Status & Controls</h2>
+          <div class="control-row">
+            <button id="new-hand" type="button">New Hand</button>
+            <button id="done-street" type="button" ${state.handFinished ? "disabled" : ""}>Done</button>
+            <label class="toggle-wrap">
+              <input id="discard-mode" type="checkbox" ${state.discardMode ? "checked" : ""} ${state.handFinished ? "disabled" : ""}/>
+              Discard mode
+            </label>
+          </div>
+          <div class="discard-zone" data-drop-zone="discard">
+            <strong>Discard zone</strong>
+            <p>Drop one current-street card here on Streets 2–5.</p>
+          </div>
+          <p class="status ${state.statusType}">${state.message}</p>
+        </section>
+      </div>
 
       <section class="panel board-panel">
-        <h2>Board</h2>
-        ${renderRow("top")}
-        ${renderRow("middle")}
-        ${renderRow("bottom")}
+        <div class="panel-heading">
+          <h2>Board</h2>
+          <span class="board-help">Drag cards from Hand/Draw into each row.</span>
+        </div>
+        <div class="rows-wrap">
+          ${renderRow("top")}
+          ${renderRow("middle")}
+          ${renderRow("bottom")}
+        </div>
       </section>
 
       ${renderResult()}
