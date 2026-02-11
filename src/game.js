@@ -17,6 +17,10 @@ function getPlacedCardCount(state) {
   return state.board.top.length + state.board.middle.length + state.board.bottom.length;
 }
 
+function togglePlayer(playerId) {
+  return playerId === "human" ? "opponent" : "human";
+}
+
 function prepareHandState(state) {
   state.board = { top: [], middle: [], bottom: [] };
   state.opponentBoard = { top: [], middle: [], bottom: [] };
@@ -166,6 +170,22 @@ function autoPlayOpponentStreet(state) {
   state.opponentLog = `Opponent played Street ${state.currentStreet}.`;
 }
 
+function maybeAutoPlayOpponentFirst(state) {
+  if (!state.playVsComputer || state.handFinished || state.isFantasyland) {
+    return;
+  }
+
+  if (state.firstPlayerThisHand !== "opponent") {
+    return;
+  }
+
+  if (state.opponentDealtByStreet[state.currentStreet]) {
+    return;
+  }
+
+  autoPlayOpponentStreet(state);
+}
+
 export function runBotRegressionChecks() {
   const sim = {
     deck: createDeck(),
@@ -192,6 +212,8 @@ export function runBotRegressionChecks() {
     handFinished: false,
     result: null,
     playVsComputer: true,
+    firstPlayerThisHand: "human",
+    nextFirstPlayer: "human",
     opponentLog: "",
   };
   shuffleDeck(sim.deck);
@@ -222,12 +244,18 @@ export function startHand(state) {
   prepareHandState(state);
   state.deck = createDeck();
   shuffleDeck(state.deck);
+  state.firstPlayerThisHand = state.nextFirstPlayer;
+
+  if (!hasFantasylandTicket) {
+    state.nextFirstPlayer = togglePlayer(state.nextFirstPlayer);
+  }
 
   if (shouldStartBlockedHand) {
     state.fantasylandBlockedNextHand = false;
     state.fantasylandEligibleNextHand = false;
     state.fantasylandCardCount = 13;
     startStreet(state, 1);
+    maybeAutoPlayOpponentFirst(state);
     setStatus(state, "Fantasyland cannot happen two hands in a row. Street 1: Place all 5 cards.", "info");
     return;
   }
@@ -245,6 +273,7 @@ export function startHand(state) {
   }
 
   startStreet(state, 1);
+  maybeAutoPlayOpponentFirst(state);
   setStatus(state, "New hand started. Street 1: Place all 5 cards.", "info");
 }
 
@@ -451,6 +480,7 @@ function finishHand(state) {
 export function advanceStreet(state) {
   const nextStreet = state.currentStreet + 1;
   startStreet(state, nextStreet);
+  maybeAutoPlayOpponentFirst(state);
   setStatus(state, `Advanced to Street ${nextStreet}. Requirement: ${STREET_REQUIREMENTS[nextStreet].text}.`, "success");
 }
 
@@ -475,7 +505,10 @@ export function doneStreet(state) {
 
   resolveAutoDiscard(state);
   lockStreet(state);
-  autoPlayOpponentStreet(state);
+
+  if (state.firstPlayerThisHand === "human") {
+    autoPlayOpponentStreet(state);
+  }
 
   if (state.currentStreet === 5) {
     if (!isBoardComplete(state)) {
@@ -551,6 +584,15 @@ export function runFantasylandRegressionChecks() {
     statusType: "info",
     handFinished: false,
     result: null,
+    playVsComputer: true,
+    firstPlayerThisHand: "human",
+    nextFirstPlayer: "human",
+    opponentBoard: { top: [], middle: [], bottom: [] },
+    opponentHandCards: [],
+    opponentDealtByStreet: {},
+    opponentDiscardedByStreet: {},
+    opponentBurnedCards: [],
+    opponentLog: "",
   };
   startHand(simState);
   console.assert(!simState.isFantasyland, "Expected no consecutive Fantasyland hand");

@@ -37,6 +37,8 @@ function baseState() {
     handFinished: false,
     result: null,
     playVsComputer: true,
+    firstPlayerThisHand: "human",
+    nextFirstPlayer: "human",
     opponentBoard: { top: [], middle: [], bottom: [] },
     opponentHandCards: [],
     opponentDealtByStreet: {},

@@ -162,7 +162,8 @@ button:disabled {
 }
 
 .street-requirement,
-.street-progress {
+.street-progress,
+.street-order {
   margin: 5px 0 0;
   color: #475467;
 }
@@ -231,6 +232,23 @@ button:disabled {
   background: #eff4ff;
 }
 
+
+.opponent-board-panel {
+  border-color: #d3dbec;
+}
+
+.opponent-row-panel .row-cards {
+  background: #f8faff;
+}
+
+.opponent-card {
+  cursor: default;
+}
+
+.opponent-card .card-center {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
 
 .card {
   border: 0;

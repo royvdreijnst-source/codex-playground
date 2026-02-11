@@ -35,7 +35,32 @@ function getRowStrength(rowKey, cards) {
   return cards.reduce((sum, card) => sum + RANK_VALUE[card.rank], 0);
 }
 
-function scorePlacement(board, rowKey, card) {
+function getVisibleRankCounts(state, playerId, handCards) {
+  const otherBoard = playerId === "opponent" ? state.board : state.opponentBoard;
+  const thisBoard = playerId === "opponent" ? state.opponentBoard : state.board;
+  const counts = new Map();
+
+  const allVisibleCards = [
+    ...thisBoard.top,
+    ...thisBoard.middle,
+    ...thisBoard.bottom,
+    ...otherBoard.top,
+    ...otherBoard.middle,
+    ...otherBoard.bottom,
+  ];
+
+  for (const card of allVisibleCards) {
+    counts.set(card.rank, (counts.get(card.rank) || 0) + 1);
+  }
+
+  for (const card of handCards) {
+    counts.set(card.rank, (counts.get(card.rank) || 0) - 1);
+  }
+
+  return counts;
+}
+
+function scorePlacement(board, rowKey, card, visibleRankCounts) {
   const row = board[rowKey];
   if (row.length >= ROWS[rowKey].max) {
     return Number.NEGATIVE_INFINITY;
@@ -71,6 +96,15 @@ function scorePlacement(board, rowKey, card) {
   }
   if (middleStrength > bottomStrength + 8) {
     score -= 45;
+  }
+
+  const rankAlreadyInRow = row.some((existing) => existing.rank === card.rank);
+  const visibleCount = visibleRankCounts.get(card.rank) || 0;
+  const remainingUnseen = Math.max(0, 4 - visibleCount - 1);
+  if (rankAlreadyInRow) {
+    score += rowKey === "top" ? remainingUnseen * 3.5 : remainingUnseen * 2;
+  } else if (remainingUnseen === 0) {
+    score -= rowKey === "top" ? 9 : 5;
   }
 
   return score;
@@ -109,6 +143,7 @@ export function chooseMove(state, playerId = "opponent") {
   const cardsToPlace = handCards
     .filter((card) => !burnSet.has(card.id))
     .sort((a, b) => RANK_VALUE[b.rank] - RANK_VALUE[a.rank]);
+  const visibleRankCounts = getVisibleRankCounts(state, playerId, handCards);
 
   const placements = [];
   const trialBoard = {
@@ -122,7 +157,7 @@ export function chooseMove(state, playerId = "opponent") {
     let bestScore = Number.NEGATIVE_INFINITY;
 
     for (const rowKey of ["bottom", "middle", "top"]) {
-      const score = scorePlacement(trialBoard, rowKey, card);
+      const score = scorePlacement(trialBoard, rowKey, card, visibleRankCounts);
       if (score > bestScore) {
         bestScore = score;
         bestRow = rowKey;

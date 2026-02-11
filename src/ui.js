@@ -101,6 +101,24 @@ export function createUI({ app, state, dispatch }) {
     `;
   }
 
+  function renderOpponentRow(rowKey) {
+    const cards = state.opponentBoard[rowKey]
+      .map((card) => `<div class="card playing-card ${getCardColorClass(card)} opponent-card" title="${card.code}"><span class="card-center">${card.code}</span></div>`)
+      .join("");
+
+    return `
+      <section class="row-panel opponent-row-panel">
+        <header class="row-header">
+          <h3>${ROWS[rowKey].label}</h3>
+          <div class="row-meta">
+            <span>${state.opponentBoard[rowKey].length}/${ROWS[rowKey].max}</span>
+          </div>
+        </header>
+        <div class="row-cards opponent-row-cards">${cards}</div>
+      </section>
+    `;
+  }
+
   function renderResult() {
     if (!state.result) {
       return "";
@@ -284,10 +302,12 @@ export function createUI({ app, state, dispatch }) {
               <p class="street-title">Fantasyland Mode</p>
               <p class="street-requirement">Deal size: ${state.fantasylandCardCount} · Place exactly 13 on board.</p>
               <p class="street-progress">Board placed: ${progress.placedNow}/13 · Remaining extras: ${state.handCards.length}</p>
+              <p class="street-order">First to act this hand: ${state.firstPlayerThisHand === "human" ? "You" : "Opponent"}</p>
             ` : `
               <p class="street-title">Street ${state.currentStreet} / 5</p>
               <p class="street-requirement">Requirement: ${requirement.text}</p>
               <p class="street-progress">Placed this street: ${progress.placedNow}/${requirement.place} · Auto-discarded: ${progress.discardedNow}/${requirement.discard}</p>
+              <p class="street-order">First to act this hand: ${state.firstPlayerThisHand === "human" ? "You" : "Opponent"}</p>
             `}
           </div>
           ${renderFantasylandBanner()}
@@ -313,6 +333,16 @@ export function createUI({ app, state, dispatch }) {
           ${renderRow("top")}
           ${renderRow("middle")}
           ${renderRow("bottom")}
+        </section>
+
+        <section class="panel board-panel opponent-board-panel">
+          <header class="panel-heading">
+            <h2>Opponent Board (revealed cards)</h2>
+            <span class="panel-caption">Cards become visible as they are played</span>
+          </header>
+          ${renderOpponentRow("top")}
+          ${renderOpponentRow("middle")}
+          ${renderOpponentRow("bottom")}
         </section>
 
         ${renderResult()}
