@@ -7,6 +7,8 @@ import {
   getStreetProgress,
   startHand,
 } from "./game.js";
+import { evaluateFiveCardHand, evaluateThreeCardTop } from "./evaluator.js";
+import { ROYALTY_TABLE } from "./royalties.js";
 import { ROWS, STREET_REQUIREMENTS } from "./state.js";
 
 function getCardColorClass(card) {
@@ -23,6 +25,44 @@ function parseDragPayload(event) {
 }
 
 export function createUI({ app, state, dispatch, resetState }) {
+  function getTopRoyalty(evaluation) {
+    if (evaluation.rankName === "Three of a Kind") {
+      return evaluation.tiebreak[0] + 8;
+    }
+
+    if (evaluation.rankName === "One Pair" && evaluation.tiebreak[0] >= 6) {
+      return evaluation.tiebreak[0] - 5;
+    }
+
+    return 0;
+  }
+
+  function getRowSummary(rowKey) {
+    const cards = state.board[rowKey];
+    const isComplete = cards.length === ROWS[rowKey].max;
+
+    if (!isComplete) {
+      return {
+        handType: "Incomplete",
+        score: "—",
+      };
+    }
+
+    if (rowKey === "top") {
+      const evaluation = evaluateThreeCardTop(cards);
+      return {
+        handType: evaluation.rankName,
+        score: getTopRoyalty(evaluation),
+      };
+    }
+
+    const evaluation = evaluateFiveCardHand(cards);
+    return {
+      handType: evaluation.rankName,
+      score: ROYALTY_TABLE[rowKey][evaluation.rankName] || 0,
+    };
+  }
+
   function renderCard(card, source, rowKey = "") {
     const draggable = canDragCard(state, card.id);
     return `
@@ -43,12 +83,17 @@ export function createUI({ app, state, dispatch, resetState }) {
 
   function renderRow(rowKey) {
     const cards = state.board[rowKey].map((card) => renderCard(card, "row", rowKey)).join("");
+    const summary = getRowSummary(rowKey);
 
     return `
       <section class="row-panel">
         <header class="row-header">
           <h3>${ROWS[rowKey].label}</h3>
-          <span>${state.board[rowKey].length}/${ROWS[rowKey].max}</span>
+          <div class="row-meta">
+            <span>${state.board[rowKey].length}/${ROWS[rowKey].max}</span>
+            <span class="row-score">Score: ${summary.score}</span>
+            <span class="row-hand-type">${summary.handType}</span>
+          </div>
         </header>
         <div class="row-cards" data-row="${rowKey}">${cards}</div>
       </section>
