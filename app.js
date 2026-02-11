@@ -241,39 +241,27 @@ function draw() {
 
     <h2>Hand</h2>
     <div class="hand-zone ${isEditMode ? "" : "locked-zone"}" data-drop-zone="hand">${hand
-      .map(
-        (c, idx) =>
-          `<span class="card" draggable="${isEditMode}" data-drag-source="hand" data-card-index="${idx}">${c}</span>`
+      .map((c, idx) =>
+        renderCard(c, `draggable="${isEditMode}" data-drag-source="hand" data-card-index="${idx}"`)
       )
       .join("")}</div>
 
     <h2>Rows</h2>
     <div class="row ${isEditMode ? "" : "locked-zone"}" data-row="top"><strong>Top:</strong> ${topRow
-      .map(
-        (c, idx) =>
-          `<span class="card" draggable="${isEditMode}" data-drag-source="row" data-row="top" data-card-index="${idx}">${c}</span>`
+      .map((c, idx) =>
+        renderCard(c, `draggable="${isEditMode}" data-drag-source="hand" data-card-index="${idx}"`)
       )
       .join("")}</div>
     <div class="row ${isEditMode ? "" : "locked-zone"}" data-row="middle"><strong>Middle:</strong> ${midRow
-      .map(
-        (c, idx) =>
-          `<span class="card" draggable="${isEditMode}" data-drag-source="row" data-row="middle" data-card-index="${idx}">${c}</span>`
+      .map((c, idx) =>
+        renderCard(c, `draggable="${isEditMode}" data-drag-source="hand" data-card-index="${idx}"`)
       )
       .join("")}</div>
     <div class="row ${isEditMode ? "" : "locked-zone"}" data-row="bottom"><strong>Bottom:</strong> ${bottomRow
-      .map(
-        (c, idx) =>
-          `<span class="card" draggable="${isEditMode}" data-drag-source="row" data-row="bottom" data-card-index="${idx}">${c}</span>`
+      .map((c, idx) =>
+        renderCard(c, `draggable="${isEditMode}" data-drag-source="hand" data-card-index="${idx}"`)
       )
       .join("")}</div>
-    <div>${hand
-      .map((c, idx) => renderCard(c, `draggable="true" data-hand-index="${idx}"`))
-      .join("")}</div>
-
-    <h2>Rows</h2>
-    <div class="row" data-row="top"><strong>Top:</strong> ${topRow.map(c => renderCard(c)).join("")}</div>
-    <div class="row" data-row="middle"><strong>Middle:</strong> ${midRow.map(c => renderCard(c)).join("")}</div>
-    <div class="row" data-row="bottom"><strong>Bottom:</strong> ${bottomRow.map(c => renderCard(c)).join("")}</div>
   `;
 
   document.getElementById("deal").onclick = () => {
