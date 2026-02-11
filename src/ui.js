@@ -25,6 +25,44 @@ function parseDragPayload(event) {
 }
 
 export function createUI({ app, state, dispatch }) {
+  const SCORE_ROWS = ["top", "middle", "bottom"];
+  const SCORE_ROW_LABELS = {
+    top: "Top",
+    middle: "Middle",
+    bottom: "Bottom",
+  };
+  const RANK_LABELS = {
+    14: "Ace",
+    13: "King",
+    12: "Queen",
+    11: "Jack",
+    10: "Ten",
+    9: "Nine",
+    8: "Eight",
+    7: "Seven",
+    6: "Six",
+    5: "Five",
+    4: "Four",
+    3: "Three",
+    2: "Two",
+  };
+  const RANK_PLURALS = {
+    14: "Aces",
+    13: "Kings",
+    12: "Queens",
+    11: "Jacks",
+    10: "Tens",
+    9: "Nines",
+    8: "Eights",
+    7: "Sevens",
+    6: "Sixes",
+    5: "Fives",
+    4: "Fours",
+    3: "Threes",
+    2: "Twos",
+  };
+  let scoreboardAnimationFrame = null;
+  let lastAnimatedTotal = 0;
 
   function getSuitSortValue(card) {
     const suitOrder = { "♠": 0, "♥": 1, "♦": 2, "♣": 3 };
@@ -148,63 +186,190 @@ export function createUI({ app, state, dispatch }) {
     `;
   }
 
-  function renderScoreboard() {
-    const handTotal = state.result?.headToHeadTotal ?? 0;
-    const handSigned = handTotal > 0 ? `+${handTotal}` : `${handTotal}`;
+  function formatSigned(value) {
+    if (value > 0) return `+${value}`;
+    return `${value}`;
+  }
 
-    if (!state.result) {
+  function rankName(value, plural = false) {
+    return plural ? (RANK_PLURALS[value] || `${value}s`) : (RANK_LABELS[value] || `${value}`);
+  }
+
+  function formatEvaluationLabel(evaluation) {
+    if (!evaluation) {
+      return "—";
+    }
+
+    const [first, second] = evaluation.tiebreakers || [];
+    switch (evaluation.categoryName) {
+      case "One Pair":
+        return `Pair of ${rankName(first, true)}`;
+      case "Two Pair":
+        return `Two Pair (${rankName(first, true)} & ${rankName(second, true)})`;
+      case "Three of a Kind":
+        return `Three of a Kind (${rankName(first, true)})`;
+      case "Four of a Kind":
+        return `Four of a Kind (${rankName(first, true)})`;
+      case "Full House":
+        return `Full House (${rankName(first, true)} full of ${rankName(second, true)})`;
+      case "High Card":
+        return `High Card (${rankName(first)})`;
+      case "Straight":
+      case "Flush":
+      case "Straight Flush":
+        return `${evaluation.categoryName} (${rankName(first)} high)`;
+      default:
+        return evaluation.categoryName;
+    }
+  }
+
+  function getOutcomeMeta(result) {
+    if (result > 0) return { icon: "🟢", className: "row-win" };
+    if (result < 0) return { icon: "🔴", className: "row-loss" };
+    return { icon: "⚪", className: "row-tie" };
+  }
+
+  function getOpponentCellClass(rowResult) {
+    if (rowResult < 0) return "row-win";
+    if (rowResult > 0) return "row-muted";
+    return "row-tie";
+  }
+
+  function animateScoreboardTotal() {
+    const totalEl = document.getElementById("animated-total-score");
+    if (!totalEl) {
+      return;
+    }
+
+    const target = Number(totalEl.dataset.target || 0);
+    const start = lastAnimatedTotal;
+    if (start === target) {
+      totalEl.textContent = formatSigned(target);
+      return;
+    }
+
+    if (scoreboardAnimationFrame) {
+      cancelAnimationFrame(scoreboardAnimationFrame);
+    }
+
+    const duration = 550;
+    const startedAt = performance.now();
+
+    const tick = (now) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = 1 - ((1 - progress) ** 3);
+      const current = Math.round(start + (target - start) * eased);
+      totalEl.textContent = formatSigned(current);
+
+      if (progress < 1) {
+        scoreboardAnimationFrame = requestAnimationFrame(tick);
+      } else {
+        lastAnimatedTotal = target;
+        totalEl.textContent = formatSigned(target);
+      }
+    };
+
+    scoreboardAnimationFrame = requestAnimationFrame(tick);
+  }
+
+  function renderScoreboard(scoreResult) {
+    const handTotal = scoreResult?.pointsA ?? 0;
+    const handSigned = handTotal > 0 ? `+${handTotal}` : `${handTotal}`;
+    const totalClass = handTotal > 0 ? "score-positive" : handTotal < 0 ? "score-negative" : "score-neutral";
+
+    if (!state.result || !scoreResult) {
       return `
         <section class="panel score-panel">
           <header class="panel-heading">
-            <h2>Scoreboard</h2>
-            <span class="panel-caption">Digital total score</span>
+            <h2>Total Score: <span class="score-neutral">0</span></h2>
+            <span class="panel-caption">Round breakdown</span>
           </header>
-          <div class="digital-scoreboard" aria-label="Match total score">
-            <div class="digital-lane">
-              <span class="digital-label">YOU</span>
-              <span class="digital-value">${state.playerScore}</span>
-            </div>
-            <span class="digital-separator">:</span>
-            <div class="digital-lane">
-              <span class="digital-label">CPU</span>
-              <span class="digital-value">${state.opponentScore}</span>
-            </div>
-          </div>
-          <p class="score-summary">Hand total: ${handSigned}</p>
+          <p class="score-summary">Finish a hand to see row-by-row analysis.</p>
         </section>
       `;
     }
 
     let summaryText = "Rows compared normally.";
     if (state.result.bothFouled) {
-      summaryText = "Both players fouled. Score is 0-0.";
+      summaryText = "Both players fouled – 0-0";
     } else if (state.result.singleFoul) {
       summaryText = state.result.fouled
-        ? "You fouled. You lose all three lines and get no royalties."
-        : "Opponent fouled. You win all three lines; fouled player gets no royalties.";
+        ? "You fouled"
+        : "Opponent Fouled";
     } else if (state.result.scoop) {
       summaryText = "Scoop! +3 bonus applied once.";
     }
 
+    const rowBreakdown = SCORE_ROWS.map((rowKey, rowIndex) => {
+      const rowResult = scoreResult.lineWinsA[rowKey] || 0;
+      const playerRoyalty = scoreResult.breakdown.royaltiesA[rowKey] || 0;
+      const opponentRoyalty = scoreResult.breakdown.royaltiesB[rowKey] || 0;
+      const net = rowResult + playerRoyalty - opponentRoyalty;
+      const playerOutcome = getOutcomeMeta(rowResult);
+      const opponentOutcome = getOutcomeMeta(-rowResult);
+      const playerEval = scoreResult.breakdown.evaluations.boardA[rowKey];
+      const opponentEval = scoreResult.breakdown.evaluations.boardB[rowKey];
+
+      return `
+        <tr class="score-row score-row-${rowIndex % 2 === 0 ? "alt" : "base"}">
+          <td class="${playerOutcome.className}">
+            <span class="score-row-name">${SCORE_ROW_LABELS[rowKey]}</span>
+            <span class="score-icon">${playerOutcome.icon}</span>
+            <span>${formatEvaluationLabel(playerEval)}</span>
+          </td>
+          <td title="Royalties by row from scoreHand().">${playerRoyalty}</td>
+          <td class="score-net-cell">${formatSigned(rowResult)} + ${playerRoyalty} - ${opponentRoyalty} = <strong>${formatSigned(net)}</strong></td>
+          <td title="Royalties by row from scoreHand().">${opponentRoyalty}</td>
+          <td class="${getOpponentCellClass(rowResult)}">
+            <span class="score-row-name">${SCORE_ROW_LABELS[rowKey]}</span>
+            <span class="score-icon">${opponentOutcome.icon}</span>
+            <span>${formatEvaluationLabel(opponentEval)}</span>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    const scoopBonus = scoreResult.breakdown.linePointsA
+      - (scoreResult.lineWinsA.top + scoreResult.lineWinsA.middle + scoreResult.lineWinsA.bottom);
+
     return `
       <section class="panel score-panel">
         <header class="panel-heading">
-          <h2>Scoreboard</h2>
-          <span class="panel-caption">Digital total score</span>
+          <h2>Total Score: <span id="animated-total-score" class="${totalClass}" data-target="${handTotal}">${handSigned}</span></h2>
+          <span class="panel-caption">Round breakdown</span>
         </header>
-        <div class="digital-scoreboard" aria-label="Match total score">
-          <div class="digital-lane">
-            <span class="digital-label">YOU</span>
-            <span class="digital-value">${state.playerScore}</span>
-          </div>
-          <span class="digital-separator">:</span>
-          <div class="digital-lane">
-            <span class="digital-label">CPU</span>
-            <span class="digital-value">${state.opponentScore}</span>
-          </div>
-        </div>
-        <p class="score-totals">Hand total: <strong>${handSigned}</strong></p>
-        <p class="score-summary">${summaryText}</p>
+        <p class="score-opponent-muted">Opponent total: ${formatSigned(scoreResult.pointsB)}</p>
+        <p class="score-status ${state.result.bothFouled ? "status-neutral" : state.result.fouled ? "status-negative" : state.result.opponent?.fouled ? "status-positive" : "status-neutral"}">${summaryText}</p>
+        <table class="score-breakdown-table" aria-label="Round score breakdown">
+          <thead>
+            <tr>
+              <th>Player Hand</th>
+              <th title="Royalties from scoreHand().">Player Royalties</th>
+              <th>Net Row Score</th>
+              <th title="Royalties from scoreHand().">Opponent Royalties</th>
+              <th>Opponent Hand</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowBreakdown}
+            <tr class="score-total-row">
+              <td></td>
+              <td title="Sum of player top/middle/bottom royalties.">${scoreResult.royaltiesA}</td>
+              <td class="score-total-main ${totalClass}">${handSigned}</td>
+              <td title="Sum of opponent top/middle/bottom royalties.">${scoreResult.royaltiesB}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+        <details class="score-calc-details">
+          <summary>View Calculation Details</summary>
+          <ul>
+            <li>Line points: ${formatSigned(scoreResult.lineWinsA.top + scoreResult.lineWinsA.middle + scoreResult.lineWinsA.bottom)}</li>
+            <li>Scoop Bonus: ${formatSigned(scoopBonus)}</li>
+            <li>Royalties delta: ${formatSigned(scoreResult.royaltiesA - scoreResult.royaltiesB)}</li>
+            <li>Total Player Score: ${formatSigned(scoreResult.pointsA)}</li>
+          </ul>
+        </details>
       </section>
     `;
   }
@@ -432,7 +597,7 @@ export function createUI({ app, state, dispatch }) {
             ${renderRow("bottom")}
           </section>
 
-          ${renderScoreboard()}
+          ${renderScoreboard(state.result?.scoring)}
 
           <section class="panel board-panel opponent-board-panel">
             <header class="panel-heading">
@@ -468,6 +633,7 @@ export function createUI({ app, state, dispatch }) {
 
     bindEvents();
     setupDragAndDrop();
+    animateScoreboardTotal();
   }
 
   return { render };
