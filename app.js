@@ -220,6 +220,15 @@ function setupDragAndDrop() {
   }
 }
 
+function getCardColorClass(card) {
+  const suit = card.slice(-1);
+  return suit === "♥" || suit === "♦" ? "red" : "black";
+}
+
+function renderCard(card, attrs = "") {
+  return `<span class="card ${getCardColorClass(card)}" ${attrs}>${card}</span>`;
+}
+
 function draw() {
   ensureDropStyles();
 
@@ -257,6 +266,14 @@ function draw() {
           `<span class="card" draggable="${isEditMode}" data-drag-source="row" data-row="bottom" data-card-index="${idx}">${c}</span>`
       )
       .join("")}</div>
+    <div>${hand
+      .map((c, idx) => renderCard(c, `draggable="true" data-hand-index="${idx}"`))
+      .join("")}</div>
+
+    <h2>Rows</h2>
+    <div class="row" data-row="top"><strong>Top:</strong> ${topRow.map(c => renderCard(c)).join("")}</div>
+    <div class="row" data-row="middle"><strong>Middle:</strong> ${midRow.map(c => renderCard(c)).join("")}</div>
+    <div class="row" data-row="bottom"><strong>Bottom:</strong> ${bottomRow.map(c => renderCard(c)).join("")}</div>
   `;
 
   document.getElementById("deal").onclick = () => {
