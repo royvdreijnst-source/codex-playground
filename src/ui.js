@@ -325,24 +325,26 @@ export function createUI({ app, state, dispatch }) {
           </div>
         </section>
 
-        <section class="panel board-panel">
-          <header class="panel-heading">
-            <h2>Your Board</h2>
-            <span class="panel-caption">Top / Middle / Bottom</span>
-          </header>
-          ${renderRow("top")}
-          ${renderRow("middle")}
-          ${renderRow("bottom")}
-        </section>
+        <section class="players-row">
+          <section class="panel board-panel player-board-panel">
+            <header class="panel-heading">
+              <h2>Your Board</h2>
+              <span class="panel-caption">Top / Middle / Bottom</span>
+            </header>
+            ${renderRow("top")}
+            ${renderRow("middle")}
+            ${renderRow("bottom")}
+          </section>
 
-        <section class="panel board-panel opponent-board-panel">
-          <header class="panel-heading">
-            <h2>Opponent Board (revealed cards)</h2>
-            <span class="panel-caption">Cards become visible as they are played</span>
-          </header>
-          ${renderOpponentRow("top")}
-          ${renderOpponentRow("middle")}
-          ${renderOpponentRow("bottom")}
+          <section class="panel board-panel opponent-board-panel">
+            <header class="panel-heading">
+              <h2>Opponent Board (revealed cards)</h2>
+              <span class="panel-caption">Cards become visible as they are played</span>
+            </header>
+            ${renderOpponentRow("top")}
+            ${renderOpponentRow("middle")}
+            ${renderOpponentRow("bottom")}
+          </section>
         </section>
 
         ${renderResult()}

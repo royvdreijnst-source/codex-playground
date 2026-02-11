@@ -20,13 +20,14 @@ body {
 }
 
 .page-shell {
-  max-width: 1100px;
+  width: min(100vw, 1920px);
+  min-height: 100vh;
   margin: 0 auto;
-  padding: 26px 18px 36px;
+  padding: 14px 16px;
 }
 
 .page-header {
-  margin-bottom: 18px;
+  margin-bottom: 10px;
 }
 
 .eyebrow {
@@ -51,27 +52,36 @@ h1 {
 .outside-actions {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .game-layout {
   display: grid;
-  grid-template-columns: 1.8fr 1.2fr;
-  gap: 14px;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.players-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
 .panel {
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  border-radius: 14px;
-  padding: 14px;
+  border-radius: 12px;
+  padding: 8px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .controls-panel,
 .board-panel,
 .rules-panel,
-.result-panel {
+.result-panel,
+.players-row,
+.hand-panel,
+.history-panel {
   grid-column: 1 / -1;
 }
 
@@ -80,14 +90,14 @@ h1 {
   justify-content: space-between;
   align-items: baseline;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .panel-heading h2,
 .rules-panel h2,
 .result-panel h2 {
   margin: 0;
-  font-size: 1.08rem;
+  font-size: 1rem;
 }
 
 .panel-caption {
@@ -181,10 +191,10 @@ button:disabled {
 
 .hand-zone,
 .row-cards {
-  min-height: 74px;
+  min-height: 64px;
   border: 1px dashed #b7c4de;
   border-radius: 10px;
-  padding: 10px;
+  padding: 8px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -193,8 +203,8 @@ button:disabled {
 }
 
 .row-panel + .row-panel {
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid #edf1f7;
 }
 
@@ -261,8 +271,8 @@ button:disabled {
   border: 1px solid #c8d3ea;
   background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
   border-radius: 9px;
-  width: 58px;
-  height: 82px;
+  width: 46px;
+  height: 66px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -273,7 +283,7 @@ button:disabled {
   position: absolute;
   top: 6px;
   left: 6px;
-  font-size: 1.08rem;
+  font-size: 0.9rem;
   font-weight: 800;
   line-height: 0.95;
   display: flex;
@@ -283,13 +293,13 @@ button:disabled {
 }
 
 .playing-card .card-corner small {
-  font-size: 0.88rem;
+  font-size: 0.72rem;
   margin-top: 1px;
   font-weight: 700;
 }
 
 .playing-card .card-center {
-  font-size: 1.7rem;
+  font-size: 1.3rem;
   line-height: 1;
   opacity: 0.92;
 }
@@ -322,6 +332,12 @@ button:disabled {
 .rules-panel p {
   margin: 6px 0;
   color: #344054;
+}
+
+@media (max-width: 1100px) {
+  .players-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 860px) {
