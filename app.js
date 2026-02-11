@@ -4,6 +4,7 @@ let hand = [];
 let topRow = [];
 let midRow = [];
 let bottomRow = [];
+let isEditMode = true;
 
 const suits = ["♠", "♥", "♦", "♣"];
 const ranks = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"];
@@ -24,7 +25,8 @@ function ensureDropStyles() {
   const style = document.createElement("style");
   style.id = "dnd-styles";
   style.textContent = `
-    .row.drop-active {
+    .row.drop-active,
+    .hand-zone.drop-active {
       outline: 2px dashed #4a90e2;
       background: #f0f7ff;
     }
@@ -83,14 +85,67 @@ function moveCardToRow(cardIndex, rowKey) {
   draw();
 }
 
+function moveRowCard(fromRowKey, cardIndex, toRowKey) {
+  const fromRow = rowConfig[fromRowKey];
+  const toRow = rowConfig[toRowKey];
+
+  if (!fromRow || !toRow) {
+    return;
+  }
+
+  if (fromRowKey !== toRowKey && toRow.cards.length >= toRow.max) {
+    alert(`${toRow.label} row is full.`);
+    return;
+  }
+
+  const [card] = fromRow.cards.splice(cardIndex, 1);
+
+  if (!card) {
+    return;
+  }
+
+  toRow.cards.push(card);
+  draw();
+}
+
+function moveRowCardToHand(fromRowKey, cardIndex) {
+  const fromRow = rowConfig[fromRowKey];
+
+  if (!fromRow) {
+    return;
+  }
+
+  const [card] = fromRow.cards.splice(cardIndex, 1);
+
+  if (!card) {
+    return;
+  }
+
+  hand.push(card);
+  draw();
+}
+
 function setupDragAndDrop() {
-  const draggableCards = document.querySelectorAll("[data-hand-index]");
+  if (!isEditMode) {
+    return;
+  }
+
+  const draggableCards = document.querySelectorAll("[data-drag-source]");
   const dropZones = document.querySelectorAll("[data-row]");
+  const handZone = document.querySelector("[data-drop-zone='hand']");
 
   draggableCards.forEach((card) => {
     card.addEventListener("dragstart", (event) => {
-      const handIndex = card.dataset.handIndex;
-      event.dataTransfer.setData("text/plain", handIndex);
+      const payload = {
+        source: card.dataset.dragSource,
+        index: Number(card.dataset.cardIndex),
+      };
+
+      if (payload.source === "row") {
+        payload.row = card.dataset.row;
+      }
+
+      event.dataTransfer.setData("text/plain", JSON.stringify(payload));
       event.dataTransfer.effectAllowed = "move";
     });
   });
@@ -117,14 +172,52 @@ function setupDragAndDrop() {
       event.preventDefault();
       zone.classList.remove("drop-active");
 
-      const handIndex = Number(event.dataTransfer.getData("text/plain"));
+      const rawData = event.dataTransfer.getData("text/plain");
       const rowKey = zone.dataset.row;
+      const payload = JSON.parse(rawData || "{}");
 
-      if (Number.isInteger(handIndex)) {
-        moveCardToRow(handIndex, rowKey);
+      if (!Number.isInteger(payload.index)) {
+        return;
+      }
+
+      if (payload.source === "hand") {
+        moveCardToRow(payload.index, rowKey);
+      } else if (payload.source === "row") {
+        moveRowCard(payload.row, payload.index, rowKey);
       }
     });
   });
+
+  if (handZone) {
+    handZone.addEventListener("dragenter", (event) => {
+      event.preventDefault();
+      handZone.classList.add("drop-active");
+    });
+
+    handZone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      handZone.classList.add("drop-active");
+    });
+
+    handZone.addEventListener("dragleave", (event) => {
+      if (!handZone.contains(event.relatedTarget)) {
+        handZone.classList.remove("drop-active");
+      }
+    });
+
+    handZone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      handZone.classList.remove("drop-active");
+
+      const rawData = event.dataTransfer.getData("text/plain");
+      const payload = JSON.parse(rawData || "{}");
+
+      if (payload.source === "row" && Number.isInteger(payload.index)) {
+        moveRowCardToHand(payload.row, payload.index);
+      }
+    });
+  }
 }
 
 function getCardColorClass(card) {
@@ -140,9 +233,39 @@ function draw() {
   ensureDropStyles();
 
   app.innerHTML = `
-    <button id="deal">Deal 5 cards</button>
+    <div class="controls">
+      <button id="deal">Deal 5 cards</button>
+      <button id="toggle-mode">${isEditMode ? "Done" : "Edit"}</button>
+      ${isEditMode ? "" : '<span class="mode-badge">Locked</span>'}
+    </div>
 
     <h2>Hand</h2>
+    <div class="hand-zone ${isEditMode ? "" : "locked-zone"}" data-drop-zone="hand">${hand
+      .map(
+        (c, idx) =>
+          `<span class="card" draggable="${isEditMode}" data-drag-source="hand" data-card-index="${idx}">${c}</span>`
+      )
+      .join("")}</div>
+
+    <h2>Rows</h2>
+    <div class="row ${isEditMode ? "" : "locked-zone"}" data-row="top"><strong>Top:</strong> ${topRow
+      .map(
+        (c, idx) =>
+          `<span class="card" draggable="${isEditMode}" data-drag-source="row" data-row="top" data-card-index="${idx}">${c}</span>`
+      )
+      .join("")}</div>
+    <div class="row ${isEditMode ? "" : "locked-zone"}" data-row="middle"><strong>Middle:</strong> ${midRow
+      .map(
+        (c, idx) =>
+          `<span class="card" draggable="${isEditMode}" data-drag-source="row" data-row="middle" data-card-index="${idx}">${c}</span>`
+      )
+      .join("")}</div>
+    <div class="row ${isEditMode ? "" : "locked-zone"}" data-row="bottom"><strong>Bottom:</strong> ${bottomRow
+      .map(
+        (c, idx) =>
+          `<span class="card" draggable="${isEditMode}" data-drag-source="row" data-row="bottom" data-card-index="${idx}">${c}</span>`
+      )
+      .join("")}</div>
     <div>${hand
       .map((c, idx) => renderCard(c, `draggable="true" data-hand-index="${idx}"`))
       .join("")}</div>
@@ -155,6 +278,11 @@ function draw() {
 
   document.getElementById("deal").onclick = () => {
     hand = dealCards(5);
+    draw();
+  };
+
+  document.getElementById("toggle-mode").onclick = () => {
+    isEditMode = !isEditMode;
     draw();
   };
 
