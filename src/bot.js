@@ -44,10 +44,15 @@ function getVisibleRankCounts(state, playerId, handCards) {
     ...thisBoard.top,
     ...thisBoard.middle,
     ...thisBoard.bottom,
-    ...otherBoard.top,
-    ...otherBoard.middle,
-    ...otherBoard.bottom,
   ];
+
+  if (!(state.isFantasyland && !state.handFinished)) {
+    allVisibleCards.push(
+      ...otherBoard.top,
+      ...otherBoard.middle,
+      ...otherBoard.bottom,
+    );
+  }
 
   for (const card of allVisibleCards) {
     counts.set(card.rank, (counts.get(card.rank) || 0) + 1);

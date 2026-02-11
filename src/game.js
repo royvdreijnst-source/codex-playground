@@ -21,6 +21,25 @@ function togglePlayer(playerId) {
   return playerId === "human" ? "opponent" : "human";
 }
 
+function getOpponentHandSnapshot(state) {
+  if (state.playVsComputer) {
+    return {
+      top: [...state.opponentBoard.top],
+      middle: [...state.opponentBoard.middle],
+      bottom: [...state.opponentBoard.bottom],
+    };
+  }
+
+  return { top: [], middle: [], bottom: [] };
+}
+
+function setNextFirstPlayer(state, hadAnyFantasyland) {
+  if (hadAnyFantasyland) {
+    return;
+  }
+  state.nextFirstPlayer = togglePlayer(state.firstPlayerThisHand);
+}
+
 function prepareHandState(state) {
   state.board = { top: [], middle: [], bottom: [] };
   state.opponentBoard = { top: [], middle: [], bottom: [] };
@@ -215,6 +234,8 @@ export function runBotRegressionChecks() {
     firstPlayerThisHand: "human",
     nextFirstPlayer: "human",
     opponentLog: "",
+    opponentFantasylandCardCount: 13,
+    opponentFantasylandEligibleNextHand: false,
   };
   shuffleDeck(sim.deck);
 
@@ -236,39 +257,67 @@ export function runBotRegressionChecks() {
   console.assert(completed, "Bot did not complete board across 5 streets");
 }
 
+function getHasFantasylandDealThisHand(state, shouldStartBlockedHand, hasHumanFantasylandTicket) {
+  if (shouldStartBlockedHand) {
+    return false;
+  }
+
+  return hasHumanFantasylandTicket || state.opponentFantasylandEligibleNextHand;
+}
+
 export function startHand(state) {
   const shouldStartBlockedHand = state.fantasylandBlockedNextHand;
-  const hasFantasylandTicket = state.fantasylandEligibleNextHand;
-  const ticketCardCount = state.fantasylandCardCount;
+  const hasHumanFantasylandTicket = state.fantasylandEligibleNextHand;
+  const humanTicketCardCount = state.fantasylandCardCount;
+  const hasOpponentFantasylandTicket = state.playVsComputer && state.opponentFantasylandEligibleNextHand;
+  const opponentTicketCardCount = state.opponentFantasylandCardCount;
 
   prepareHandState(state);
   state.deck = createDeck();
   shuffleDeck(state.deck);
-  state.firstPlayerThisHand = state.nextFirstPlayer;
 
-  if (!hasFantasylandTicket) {
-    state.nextFirstPlayer = togglePlayer(state.nextFirstPlayer);
-  }
+  const hasFantasylandDealThisHand = getHasFantasylandDealThisHand(state, shouldStartBlockedHand, hasHumanFantasylandTicket);
+  state.firstPlayerThisHand = state.nextFirstPlayer;
+  setNextFirstPlayer(state, hasFantasylandDealThisHand);
 
   if (shouldStartBlockedHand) {
     state.fantasylandBlockedNextHand = false;
     state.fantasylandEligibleNextHand = false;
     state.fantasylandCardCount = 13;
+    state.opponentFantasylandEligibleNextHand = false;
+    state.opponentFantasylandCardCount = 13;
     startStreet(state, 1);
     maybeAutoPlayOpponentFirst(state);
     setStatus(state, "Fantasyland cannot happen two hands in a row. Street 1: Place all 5 cards.", "info");
     return;
   }
 
-  if (hasFantasylandTicket) {
+  if (hasHumanFantasylandTicket || hasOpponentFantasylandTicket) {
     state.fantasylandEligibleNextHand = false;
-    startFantasylandHand(state, ticketCardCount);
-    if (state.playVsComputer) {
-      startFantasylandHand(state, 13, "opponent");
+    state.opponentFantasylandEligibleNextHand = false;
+
+    if (hasHumanFantasylandTicket) {
+      startFantasylandHand(state, humanTicketCardCount);
+    } else {
+      state.handCards = [];
+      state.currentStreetCardIds = new Set();
+      state.dealtByStreet = {};
+      state.discardedByStreet = {};
+    }
+
+    if (hasOpponentFantasylandTicket) {
+      startFantasylandHand(state, opponentTicketCardCount, "opponent");
+    }
+
+    if (state.playVsComputer && hasOpponentFantasylandTicket) {
       const move = chooseMove(state, "opponent");
       applyOpponentMove(state, move);
       state.opponentLog = "Opponent played Fantasyland.";
     }
+
+    const humanText = hasHumanFantasylandTicket ? `You: ${humanTicketCardCount}` : "You: no Fantasyland";
+    const opponentText = hasOpponentFantasylandTicket ? `Opponent: ${opponentTicketCardCount}` : "Opponent: no Fantasyland";
+    setStatus(state, `Fantasyland hand. ${humanText} cards. ${opponentText} cards.`, "success");
     return;
   }
 
@@ -444,37 +493,111 @@ export function evaluateFinalResult(state) {
   };
 }
 
-function finalizeFantasylandOutcome(state, fouled) {
-  const qualification = getFantasylandQualification(state.board, fouled);
+function evaluateOpponentFoul(state) {
+  const topEval = evaluateThreeCardTop(state.opponentBoard.top);
+  const middleEval = evaluateFiveCardHand(state.opponentBoard.middle);
+  const bottomEval = evaluateFiveCardHand(state.opponentBoard.bottom);
+
+  return compareHands(bottomEval, middleEval) < 0 || compareHands(middleEval, topEval) < 0;
+}
+
+function compareRows(heroEval, villainEval, heroFouled, villainFouled) {
+  if (heroFouled && villainFouled) {
+    return 0;
+  }
+  if (heroFouled) {
+    return -1;
+  }
+  if (villainFouled) {
+    return 1;
+  }
+  return Math.sign(compareHands(heroEval, villainEval));
+}
+
+function finalizeFantasylandOutcome(state, playerFouled, opponentFouled) {
+  const playerQualification = getFantasylandQualification(state.board, playerFouled);
+  const opponentQualification = getFantasylandQualification(state.opponentBoard, opponentFouled);
+
+  state.fantasylandBlockedNextHand = state.isFantasyland;
+
+  state.fantasylandEligibleNextHand = playerQualification.eligible;
+  state.fantasylandCardCount = playerQualification.eligible ? playerQualification.cards : 13;
+  state.opponentFantasylandEligibleNextHand = opponentQualification.eligible;
+  state.opponentFantasylandCardCount = opponentQualification.eligible ? opponentQualification.cards : 13;
 
   if (state.isFantasyland) {
-    state.fantasylandBlockedNextHand = true;
-    state.fantasylandEligibleNextHand = false;
-    if (qualification.eligible) {
-      setStatus(state, "Hand complete. Fantasyland cannot happen two hands in a row.", "info");
-      return;
-    }
-    setStatus(state, "Hand complete.", "success");
+    setStatus(state, "Hand complete. Fantasyland cannot happen two hands in a row.", "info");
     return;
   }
 
-  if (qualification.eligible) {
-    state.fantasylandEligibleNextHand = true;
-    state.fantasylandCardCount = qualification.cards;
-    setStatus(state, `Hand complete. Qualified for Fantasyland next hand (${qualification.cards} cards).`, "success");
-    return;
+  const notices = ["Hand complete."];
+  if (playerQualification.eligible) {
+    notices.push(`You qualified for Fantasyland (${playerQualification.cards} cards).`);
+  }
+  if (opponentQualification.eligible) {
+    notices.push(`Opponent qualified for Fantasyland (${opponentQualification.cards} cards).`);
   }
 
-  state.fantasylandEligibleNextHand = false;
-  state.fantasylandCardCount = 13;
-  setStatus(state, "Hand complete.", "success");
+  setStatus(state, notices.join(" "), "success");
 }
 
 function finishHand(state) {
   state.handFinished = true;
-  state.result = evaluateFinalResult(state);
-  const fouled = state.result.fouled;
-  finalizeFantasylandOutcome(state, fouled);
+  const playerResult = evaluateFinalResult(state);
+  const playerFouled = playerResult.fouled;
+  const opponentFouled = evaluateOpponentFoul(state);
+
+  const playerTop = evaluateThreeCardTop(state.board.top);
+  const playerMiddle = evaluateFiveCardHand(state.board.middle);
+  const playerBottom = evaluateFiveCardHand(state.board.bottom);
+  const opponentTop = evaluateThreeCardTop(state.opponentBoard.top);
+  const opponentMiddle = evaluateFiveCardHand(state.opponentBoard.middle);
+  const opponentBottom = evaluateFiveCardHand(state.opponentBoard.bottom);
+
+  const rowResults = {
+    top: compareRows(playerTop, opponentTop, playerFouled, opponentFouled),
+    middle: compareRows(playerMiddle, opponentMiddle, playerFouled, opponentFouled),
+    bottom: compareRows(playerBottom, opponentBottom, playerFouled, opponentFouled),
+  };
+
+  const playerWins = Object.values(rowResults).filter((result) => result > 0).length;
+  const opponentWins = Object.values(rowResults).filter((result) => result < 0).length;
+  const scoop = playerWins === 3 || opponentWins === 3;
+  const rowUnit = scoop ? 2 : 1;
+
+  const rowScores = {
+    top: rowResults.top * rowUnit,
+    middle: rowResults.middle * rowUnit,
+    bottom: rowResults.bottom * rowUnit,
+  };
+
+  const headToHeadTotal = rowScores.top + rowScores.middle + rowScores.bottom;
+
+  state.result = {
+    ...playerResult,
+    opponent: {
+      fouled: opponentFouled,
+      top: opponentTop,
+      middle: opponentMiddle,
+      bottom: opponentBottom,
+    },
+    rows: rowResults,
+    rowScores,
+    scoop,
+    headToHeadTotal,
+    total: headToHeadTotal,
+    informationSymmetric: state.isFantasyland,
+    boardsAtShowdown: {
+      hero: {
+        top: [...state.board.top],
+        middle: [...state.board.middle],
+        bottom: [...state.board.bottom],
+      },
+      opponent: getOpponentHandSnapshot(state),
+    },
+  };
+
+  finalizeFantasylandOutcome(state, playerFouled, opponentFouled);
 }
 
 export function advanceStreet(state) {
@@ -593,6 +716,8 @@ export function runFantasylandRegressionChecks() {
     opponentDiscardedByStreet: {},
     opponentBurnedCards: [],
     opponentLog: "",
+    opponentFantasylandCardCount: 13,
+    opponentFantasylandEligibleNextHand: false,
   };
   startHand(simState);
   console.assert(!simState.isFantasyland, "Expected no consecutive Fantasyland hand");

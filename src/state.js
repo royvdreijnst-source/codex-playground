@@ -31,6 +31,8 @@ function baseState() {
     fantasylandCardCount: 13,
     fantasylandEligibleNextHand: false,
     fantasylandBlockedNextHand: false,
+    opponentFantasylandCardCount: 13,
+    opponentFantasylandEligibleNextHand: false,
     burnedCards: [],
     message: "",
     statusType: "info",

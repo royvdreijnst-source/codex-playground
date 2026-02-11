@@ -258,6 +258,12 @@ button:disabled {
   cursor: default;
 }
 
+.opponent-card-hidden {
+  color: #4b5565;
+  border-style: dashed;
+  background: linear-gradient(180deg, #e8edf7 0%, #dce4f3 100%);
+}
+
 .opponent-card .card-center {
   font-size: 0.95rem;
   font-weight: 700;
@@ -326,6 +332,7 @@ button:disabled {
 
 .success-text { color: #126132; font-weight: 700; }
 .error-text { color: #8a1f1f; font-weight: 700; }
+.info-text { color: #243b7a; font-weight: 700; }
 
 .rules-panel h3 {
   margin: 10px 0 4px;

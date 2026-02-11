@@ -101,9 +101,29 @@ export function createUI({ app, state, dispatch }) {
     `;
   }
 
+  function shouldHideOpponentCards() {
+    return state.isFantasyland && !state.handFinished;
+  }
+
+  function getDisplayOpponentBoard() {
+    if (state.handFinished && state.result?.informationSymmetric && state.result.boardsAtShowdown?.opponent) {
+      return state.result.boardsAtShowdown.opponent;
+    }
+
+    return state.opponentBoard;
+  }
+
   function renderOpponentRow(rowKey) {
-    const cards = state.opponentBoard[rowKey]
-      .map((card) => `<div class="card playing-card ${getCardColorClass(card)} opponent-card" title="${card.code}"><span class="card-center">${card.code}</span></div>`)
+    const hidden = shouldHideOpponentCards();
+    const displayBoard = getDisplayOpponentBoard();
+    const cards = displayBoard[rowKey]
+      .map((card) => {
+        if (hidden) {
+          return `<div class="card playing-card opponent-card opponent-card-hidden"><span class="card-center">🂠</span></div>`;
+        }
+
+        return `<div class="card playing-card ${getCardColorClass(card)} opponent-card" title="${card.code}"><span class="card-center">${card.code}</span></div>`;
+      })
       .join("");
 
     return `
@@ -111,7 +131,7 @@ export function createUI({ app, state, dispatch }) {
         <header class="row-header">
           <h3>${ROWS[rowKey].label}</h3>
           <div class="row-meta">
-            <span>${state.opponentBoard[rowKey].length}/${ROWS[rowKey].max}</span>
+            <span>${displayBoard[rowKey].length}/${ROWS[rowKey].max}</span>
           </div>
         </header>
         <div class="row-cards opponent-row-cards">${cards}</div>
@@ -124,18 +144,28 @@ export function createUI({ app, state, dispatch }) {
       return "";
     }
 
+    const rowLabels = { top: "Top", middle: "Middle", bottom: "Bottom" };
+    const rowLines = ["top", "middle", "bottom"].map((rowKey) => {
+      const score = state.result.rowScores[rowKey];
+      const scorePrefix = score > 0 ? "+" : "";
+      const outcome = score > 0 ? "Win" : score < 0 ? "Loss" : "Push";
+      const opponentEval = state.result.opponent[rowKey];
+      return `<li>${rowLabels[rowKey]}: ${state.result[rowKey].evaluation.rankName} vs ${opponentEval.rankName} · ${outcome} (${scorePrefix}${score})</li>`;
+    });
+
+    const total = state.result.headToHeadTotal;
+    const totalPrefix = total > 0 ? "+" : "";
+
     return `
       <section class="panel result-panel">
         <h2>Hand Result</h2>
-        <p class="${state.result.fouled ? "error-text" : "success-text"}">
-          ${state.result.fouled ? "FOULED - Royalties = 0" : "Valid Hand"}
+        <p class="${total > 0 ? "success-text" : total < 0 ? "error-text" : "info-text"}">
+          <strong>Total: ${totalPrefix}${total}</strong>
+          ${state.result.scoop ? " · Scoop (2 points per row)" : " · 1 point per row won"}
         </p>
         <ul>
-          <li>Top: ${state.result.top.evaluation.rankName} (Royalty ${state.result.top.royalty})</li>
-          <li>Middle: ${state.result.middle.evaluation.rankName} (Royalty ${state.result.middle.royalty})</li>
-          <li>Bottom: ${state.result.bottom.evaluation.rankName} (Royalty ${state.result.bottom.royalty})</li>
+          ${rowLines.join("")}
         </ul>
-        <p><strong>Total Royalties: ${state.result.total}</strong></p>
       </section>
     `;
   }
@@ -339,7 +369,7 @@ export function createUI({ app, state, dispatch }) {
           <section class="panel board-panel opponent-board-panel">
             <header class="panel-heading">
               <h2>Opponent Board (revealed cards)</h2>
-              <span class="panel-caption">Cards become visible as they are played</span>
+              <span class="panel-caption">Cards are hidden during Fantasyland until showdown</span>
             </header>
             ${renderOpponentRow("top")}
             ${renderOpponentRow("middle")}
