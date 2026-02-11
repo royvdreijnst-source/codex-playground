@@ -1,28 +1,188 @@
-body { font-family: system-ui, sans-serif; margin: 16px; }
-.card { display: inline-block; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; margin: 4px; }
-.row,
-.hand-zone { padding: 10px; border: 1px dashed #bbb; border-radius: 8px; margin: 10px 0; min-height: 40px; }
-.card.red { color: #c62828; }
-.card.black { color: #111; }
-.row  { padding: 10px; border: 1px dashed #bbb; border-radius: 8px; margin: 10px 0; min-height: 40px; }
-button { margin: 8px 0; padding: 8px 10px; }
+:root {
+  color-scheme: light;
+}
 
-.controls {
+body {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: #f4f6fb;
+  color: #1f2937;
+}
+
+h1 {
+  margin: 0 0 16px;
+}
+
+.layout {
+  max-width: 980px;
+  display: grid;
+  gap: 14px;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #d7deea;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.control-row {
   display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   align-items: center;
+}
+
+button {
+  border: 1px solid #4b72d9;
+  background: #4b72d9;
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.toggle-wrap {
+  font-size: 0.92rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #f9fbff;
+}
+
+.street-title {
+  margin: 10px 0 0;
+  font-size: 1.06rem;
+  font-weight: 700;
+}
+
+.street-requirement,
+.street-progress {
+  margin: 6px 0 0;
+}
+
+.status {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.status.info {
+  background: #eef5ff;
+  color: #20437a;
+  border: 1px solid #bfd5ff;
+}
+
+.status.success {
+  background: #e9f9ee;
+  color: #126132;
+  border: 1px solid #9dd9b1;
+}
+
+.status.error {
+  background: #feefef;
+  color: #8a1f1f;
+  border: 1px solid #f2b7b7;
+}
+
+.hand-zone,
+.row-cards,
+.discard-zone {
+  min-height: 68px;
+  border: 1px dashed #b7c4de;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  background: #fafcff;
 }
 
-.mode-badge {
-  font-size: 0.85rem;
-  color: #4b5563;
-  background: #f3f4f6;
-  border: 1px solid #d1d5db;
-  border-radius: 999px;
-  padding: 2px 8px;
+.row {
+  margin-top: 10px;
 }
 
-.locked-zone {
-  opacity: 0.7;
-  background: #fafafa;
+.row h3 {
+  margin: 0 0 8px;
+}
+
+.discard-zone {
+  margin-top: 10px;
+  flex-direction: column;
+  gap: 3px;
+  justify-content: center;
+  text-align: left;
+  background: #fff7f7;
+  border-color: #e2a4a4;
+}
+
+.discard-zone p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.card {
+  border: 1px solid #cad4ea;
+  background: #ffffff;
+  border-radius: 8px;
+  min-width: 48px;
+  padding: 8px 10px;
+  line-height: 1;
+  font-size: 1rem;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08);
+}
+
+.card.draggable {
+  cursor: grab;
+}
+
+.card.locked-card {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+.card.red {
+  color: #b11c30;
+}
+
+.card.black {
+  color: #111827;
+}
+
+.drop-active {
+  background: #edf4ff;
+  border-color: #5d87e5;
+}
+
+.result-panel ul,
+.history-panel ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.success-text {
+  color: #126132;
+  font-weight: 700;
+}
+
+.error-text {
+  color: #8a1f1f;
+  font-weight: 700;
+}
+
+.rules-panel p {
+  margin: 7px 0;
 }
