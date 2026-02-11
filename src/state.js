@@ -36,6 +36,13 @@ function baseState() {
     statusType: "info",
     handFinished: false,
     result: null,
+    playVsComputer: true,
+    opponentBoard: { top: [], middle: [], bottom: [] },
+    opponentHandCards: [],
+    opponentDealtByStreet: {},
+    opponentDiscardedByStreet: {},
+    opponentBurnedCards: [],
+    opponentLog: "",
   };
 }
 

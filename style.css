@@ -102,6 +102,30 @@ h1 {
   align-items: center;
 }
 
+
+.toggle-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.92rem;
+  color: #344054;
+}
+
+.toggle-inline input {
+  width: 16px;
+  height: 16px;
+}
+
+.opponent-log {
+  margin: 8px 0 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: #f5f7ff;
+  border: 1px solid #d0dbff;
+  color: #243b7a;
+  font-size: 0.9rem;
+}
+
 button {
   border: 1px solid var(--accent);
   background: var(--accent);

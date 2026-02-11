@@ -160,6 +160,7 @@ export function createUI({ app, state, dispatch }) {
   function bindEvents() {
     const newHandButton = document.getElementById("new-hand");
     const doneStreetButton = document.getElementById("done-street");
+    const vsComputerToggle = document.getElementById("play-vs-computer");
     if (!newHandButton || !doneStreetButton) {
       return;
     }
@@ -175,6 +176,15 @@ export function createUI({ app, state, dispatch }) {
         doneStreet(state);
       });
     });
+
+    if (vsComputerToggle) {
+      vsComputerToggle.addEventListener("change", (event) => {
+        dispatch(() => {
+          state.playVsComputer = Boolean(event.target.checked);
+          state.opponentLog = state.playVsComputer ? "Play vs Computer enabled." : "Play vs Computer disabled.";
+        });
+      });
+    }
   }
 
   function setupDropZoneVisuals(zone) {
@@ -264,6 +274,10 @@ export function createUI({ app, state, dispatch }) {
         <section class="panel controls-panel">
           <div class="control-row">
             <button id="done-street" type="button" ${state.isFantasyland ? (fantasylandDoneDisabled ? "disabled" : "") : (state.handFinished ? "disabled" : "")}>Done</button>
+            <label class="toggle-inline" for="play-vs-computer">
+              <input id="play-vs-computer" type="checkbox" ${state.playVsComputer ? "checked" : ""} />
+              Play vs Computer
+            </label>
           </div>
           <div class="street-meta">
             ${state.isFantasyland ? `
@@ -278,6 +292,7 @@ export function createUI({ app, state, dispatch }) {
           </div>
           ${renderFantasylandBanner()}
           <p class="status ${state.statusType}">${state.message}</p>
+          ${state.opponentLog ? `<p class="opponent-log">${state.opponentLog}</p>` : ""}
         </section>
 
         <section class="panel hand-panel">

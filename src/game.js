@@ -5,6 +5,7 @@ import {
   getFantasylandQualification,
 } from "./evaluator.js";
 import { computeRoyalties } from "./royalties.js";
+import { chooseMove } from "./bot.js";
 import { RANKS, ROWS, STREET_REQUIREMENTS, SUITS } from "./state.js";
 
 function setStatus(state, message, type = "info") {
@@ -18,16 +19,22 @@ function getPlacedCardCount(state) {
 
 function prepareHandState(state) {
   state.board = { top: [], middle: [], bottom: [] };
+  state.opponentBoard = { top: [], middle: [], bottom: [] };
   state.currentStreet = 1;
   state.handCards = [];
+  state.opponentHandCards = [];
   state.currentStreetCardIds = new Set();
   state.streetStartBoardCounts = { top: 0, middle: 0, bottom: 0 };
   state.dealtByStreet = {};
   state.discardedByStreet = {};
+  state.opponentDealtByStreet = {};
+  state.opponentDiscardedByStreet = {};
   state.lockedStreetCards = new Set();
   state.handFinished = false;
   state.result = null;
   state.burnedCards = [];
+  state.opponentBurnedCards = [];
+  state.opponentLog = "";
   state.isFantasyland = false;
   state.fantasylandCardCount = 13;
 }
@@ -79,12 +86,20 @@ export function startStreet(state, streetNumber) {
   state.discardedByStreet[streetNumber] = [];
 }
 
-function startFantasylandHand(state, cardCount) {
+function startFantasylandHand(state, cardCount, target = "human") {
   state.isFantasyland = true;
   state.fantasylandCardCount = cardCount;
   state.currentStreet = 1;
 
   const dealt = dealCards(state, cardCount);
+
+  if (target === "opponent") {
+    state.opponentHandCards = dealt;
+    state.opponentDealtByStreet = { fantasyland: dealt.map((card) => card.code) };
+    state.opponentDiscardedByStreet = {};
+    return;
+  }
+
   state.handCards = dealt;
   state.currentStreetCardIds = new Set(dealt.map((card) => card.id));
   state.streetStartBoardCounts = { top: 0, middle: 0, bottom: 0 };
@@ -92,6 +107,111 @@ function startFantasylandHand(state, cardCount) {
   state.discardedByStreet = {};
 
   setStatus(state, `Fantasyland! Arrange all cards freely (${cardCount} dealt).`, "success");
+}
+
+function startOpponentStreet(state, streetNumber) {
+  const requirement = STREET_REQUIREMENTS[streetNumber];
+  const dealt = dealCards(state, requirement.deal);
+  state.opponentHandCards = dealt;
+  state.opponentDealtByStreet[streetNumber] = dealt.map((card) => card.code);
+  state.opponentDiscardedByStreet[streetNumber] = [];
+}
+
+function applyOpponentMove(state, move) {
+  const handById = new Map(state.opponentHandCards.map((card) => [card.id, card]));
+
+  for (const placement of move.placements) {
+    const card = handById.get(placement.cardId);
+    if (!card) {
+      continue;
+    }
+    if (state.opponentBoard[placement.rowKey].length >= ROWS[placement.rowKey].max) {
+      continue;
+    }
+    state.opponentBoard[placement.rowKey].push(card);
+    handById.delete(placement.cardId);
+  }
+
+  for (const burnId of move.burnCardIds) {
+    const burnCard = handById.get(burnId);
+    if (!burnCard) {
+      continue;
+    }
+    if (state.isFantasyland) {
+      state.opponentBurnedCards.push(burnCard.code);
+    } else {
+      state.opponentDiscardedByStreet[state.currentStreet].push(burnCard.code);
+    }
+    handById.delete(burnId);
+  }
+
+  state.opponentHandCards = [...handById.values()];
+}
+
+function autoPlayOpponentStreet(state) {
+  if (!state.playVsComputer || state.handFinished) {
+    return;
+  }
+
+  if (state.isFantasyland) {
+    const move = chooseMove(state, "opponent");
+    applyOpponentMove(state, move);
+    state.opponentLog = "Opponent played Fantasyland.";
+    return;
+  }
+
+  startOpponentStreet(state, state.currentStreet);
+  const move = chooseMove(state, "opponent");
+  applyOpponentMove(state, move);
+  state.opponentLog = `Opponent played Street ${state.currentStreet}.`;
+}
+
+export function runBotRegressionChecks() {
+  const sim = {
+    deck: createDeck(),
+    board: { top: [], middle: [], bottom: [] },
+    opponentBoard: { top: [], middle: [], bottom: [] },
+    currentStreet: 1,
+    handCards: [],
+    opponentHandCards: [],
+    currentStreetCardIds: new Set(),
+    streetStartBoardCounts: { top: 0, middle: 0, bottom: 0 },
+    dealtByStreet: {},
+    discardedByStreet: {},
+    opponentDealtByStreet: {},
+    opponentDiscardedByStreet: {},
+    lockedStreetCards: new Set(),
+    isFantasyland: false,
+    fantasylandCardCount: 13,
+    fantasylandEligibleNextHand: false,
+    fantasylandBlockedNextHand: false,
+    burnedCards: [],
+    opponentBurnedCards: [],
+    message: "",
+    statusType: "info",
+    handFinished: false,
+    result: null,
+    playVsComputer: true,
+    opponentLog: "",
+  };
+  shuffleDeck(sim.deck);
+
+  for (let street = 1; street <= 5; street += 1) {
+    sim.currentStreet = street;
+    startOpponentStreet(sim, street);
+    const move = chooseMove(sim, "opponent");
+    applyOpponentMove(sim, move);
+    console.assert(sim.opponentHandCards.length === 0, `Bot left unresolved cards on street ${street}`);
+  }
+
+  console.assert(sim.opponentBoard.top.length <= ROWS.top.max, "Bot overflowed top row");
+  console.assert(sim.opponentBoard.middle.length <= ROWS.middle.max, "Bot overflowed middle row");
+  console.assert(sim.opponentBoard.bottom.length <= ROWS.bottom.max, "Bot overflowed bottom row");
+  const completed =
+    sim.opponentBoard.top.length === ROWS.top.max &&
+    sim.opponentBoard.middle.length === ROWS.middle.max &&
+    sim.opponentBoard.bottom.length === ROWS.bottom.max;
+  console.assert(completed, "Bot did not complete board across 5 streets");
 }
 
 export function startHand(state) {
@@ -115,6 +235,12 @@ export function startHand(state) {
   if (hasFantasylandTicket) {
     state.fantasylandEligibleNextHand = false;
     startFantasylandHand(state, ticketCardCount);
+    if (state.playVsComputer) {
+      startFantasylandHand(state, 13, "opponent");
+      const move = chooseMove(state, "opponent");
+      applyOpponentMove(state, move);
+      state.opponentLog = "Opponent played Fantasyland.";
+    }
     return;
   }
 
@@ -349,6 +475,7 @@ export function doneStreet(state) {
 
   resolveAutoDiscard(state);
   lockStreet(state);
+  autoPlayOpponentStreet(state);
 
   if (state.currentStreet === 5) {
     if (!isBoardComplete(state)) {
