@@ -76,13 +76,16 @@ h1 {
 }
 
 .controls-panel,
-.board-panel,
 .rules-panel,
 .result-panel,
 .players-row,
 .hand-panel,
 .history-panel {
   grid-column: 1 / -1;
+}
+
+.players-row > .board-panel {
+  grid-column: auto;
 }
 
 .panel-heading {
