@@ -6,11 +6,12 @@ import {
   doneStreet,
   getStreetProgress,
   isBoardComplete,
+  resetFantasylandPlacement,
   startHand,
 } from "./game.js";
 import { evaluateFiveCardHand, evaluateThreeCardTop } from "./evaluator.js";
 import { ROYALTY_TABLE } from "./royalties.js";
-import { ROWS, STREET_REQUIREMENTS } from "./state.js";
+import { RANK_VALUE, ROWS, STREET_REQUIREMENTS } from "./state.js";
 
 function getCardColorClass(card) {
   return card.suit === "♥" || card.suit === "♦" ? "red" : "black";
@@ -26,6 +27,26 @@ function parseDragPayload(event) {
 }
 
 export function createUI({ app, state, dispatch }) {
+
+  function getSuitSortValue(card) {
+    const suitOrder = { "♠": 0, "♥": 1, "♦": 2, "♣": 3 };
+    return suitOrder[card.suit] ?? 4;
+  }
+
+  function sortFantasylandCards(mode) {
+    state.fantasylandSortMode = mode;
+    state.handCards.sort((a, b) => {
+      if (mode === "suit") {
+        const suitDelta = getSuitSortValue(a) - getSuitSortValue(b);
+        if (suitDelta !== 0) {
+          return suitDelta;
+        }
+        return RANK_VALUE[b.rank] - RANK_VALUE[a.rank];
+      }
+
+      return RANK_VALUE[a.rank] - RANK_VALUE[b.rank];
+    });
+  }
   function getTopRoyalty(evaluation) {
     if (evaluation.rankName === "Three of a Kind") {
       return evaluation.tiebreak[0] + 8;
@@ -76,8 +97,7 @@ export function createUI({ app, state, dispatch }) {
         type="button"
         title="${card.code}"
       >
-        <span class="card-corner">${card.rank}<small>${card.suit}</small></span>
-        <span class="card-center">${card.suit}</span>
+        <span class="card-main">${card.rank}${card.suit}</span>
       </button>
     `;
   }
@@ -101,26 +121,109 @@ export function createUI({ app, state, dispatch }) {
     `;
   }
 
-  function renderResult() {
-    if (!state.result) {
-      return "";
+  function shouldHideOpponentCards() {
+    return state.isFantasyland && !state.handFinished;
+  }
+
+  function getDisplayOpponentBoard() {
+    if (state.handFinished && state.result?.informationSymmetric && state.result.boardsAtShowdown?.opponent) {
+      return state.result.boardsAtShowdown.opponent;
     }
 
+    return state.opponentBoard;
+  }
+
+  function renderOpponentRow(rowKey) {
+    const hidden = shouldHideOpponentCards();
+    const displayBoard = getDisplayOpponentBoard();
+    const cards = displayBoard[rowKey]
+      .map((card) => {
+        if (hidden) {
+          return `<div class="card playing-card opponent-card opponent-card-hidden"><span class="card-main">🂠</span></div>`;
+        }
+
+        return `
+          <div class="card playing-card ${getCardColorClass(card)} opponent-card" title="${card.code}">
+            <span class="card-main">${card.rank}${card.suit}</span>
+          </div>
+        `;
+      })
+      .join("");
+
     return `
-      <section class="panel result-panel">
-        <h2>Hand Result</h2>
-        <p class="${state.result.fouled ? "error-text" : "success-text"}">
-          ${state.result.fouled ? "FOULED - Royalties = 0" : "Valid Hand"}
-        </p>
-        <ul>
-          <li>Top: ${state.result.top.evaluation.rankName} (Royalty ${state.result.top.royalty})</li>
-          <li>Middle: ${state.result.middle.evaluation.rankName} (Royalty ${state.result.middle.royalty})</li>
-          <li>Bottom: ${state.result.bottom.evaluation.rankName} (Royalty ${state.result.bottom.royalty})</li>
-        </ul>
-        <p><strong>Total Royalties: ${state.result.total}</strong></p>
+      <section class="row-panel opponent-row-panel">
+        <header class="row-header">
+          <h3>${ROWS[rowKey].label}</h3>
+          <div class="row-meta">
+            <span>${displayBoard[rowKey].length}/${ROWS[rowKey].max}</span>
+          </div>
+        </header>
+        <div class="row-cards opponent-row-cards">${cards}</div>
       </section>
     `;
   }
+
+  function renderScoreboard() {
+    const handTotal = state.result?.headToHeadTotal ?? 0;
+    const handSigned = handTotal > 0 ? `+${handTotal}` : `${handTotal}`;
+
+    if (!state.result) {
+      return `
+        <section class="panel score-panel">
+          <header class="panel-heading">
+            <h2>Scoreboard</h2>
+            <span class="panel-caption">Digital total score</span>
+          </header>
+          <div class="digital-scoreboard" aria-label="Match total score">
+            <div class="digital-lane">
+              <span class="digital-label">YOU</span>
+              <span class="digital-value">${state.playerScore}</span>
+            </div>
+            <span class="digital-separator">:</span>
+            <div class="digital-lane">
+              <span class="digital-label">CPU</span>
+              <span class="digital-value">${state.opponentScore}</span>
+            </div>
+          </div>
+          <p class="score-summary">Hand total: ${handSigned}</p>
+        </section>
+      `;
+    }
+
+    let summaryText = "Rows compared normally.";
+    if (state.result.bothFouled) {
+      summaryText = "Both players fouled. Score is 0-0.";
+    } else if (state.result.singleFoul) {
+      summaryText = state.result.fouled
+        ? "You fouled. Opponent scoops (+2 per row) and royalties are still applied."
+        : "Opponent fouled. You scoop (+2 per row) and royalties are still applied.";
+    } else if (state.result.scoop) {
+      summaryText = "Scoop! 2 points per row.";
+    }
+
+    return `
+      <section class="panel score-panel">
+        <header class="panel-heading">
+          <h2>Scoreboard</h2>
+          <span class="panel-caption">Digital total score</span>
+        </header>
+        <div class="digital-scoreboard" aria-label="Match total score">
+          <div class="digital-lane">
+            <span class="digital-label">YOU</span>
+            <span class="digital-value">${state.playerScore}</span>
+          </div>
+          <span class="digital-separator">:</span>
+          <div class="digital-lane">
+            <span class="digital-label">CPU</span>
+            <span class="digital-value">${state.opponentScore}</span>
+          </div>
+        </div>
+        <p class="score-totals">Hand total: <strong>${handSigned}</strong></p>
+        <p class="score-summary">${summaryText}</p>
+      </section>
+    `;
+  }
+
 
   function renderStreetHistory() {
     if (state.isFantasyland || state.dealtByStreet.fantasyland) {
@@ -160,6 +263,8 @@ export function createUI({ app, state, dispatch }) {
   function bindEvents() {
     const newHandButton = document.getElementById("new-hand");
     const doneStreetButton = document.getElementById("done-street");
+    const resetFantasylandButton = document.getElementById("reset-fantasyland");
+    const vsComputerToggle = document.getElementById("play-vs-computer");
     if (!newHandButton || !doneStreetButton) {
       return;
     }
@@ -175,6 +280,32 @@ export function createUI({ app, state, dispatch }) {
         doneStreet(state);
       });
     });
+
+    if (resetFantasylandButton) {
+      resetFantasylandButton.addEventListener("click", () => {
+        dispatch(() => {
+          resetFantasylandPlacement(state);
+        });
+      });
+    }
+
+    document.querySelectorAll("[data-sort-mode]").forEach((button) => {
+      button.addEventListener("click", () => {
+        dispatch(() => {
+          sortFantasylandCards(button.dataset.sortMode || "value");
+        });
+      });
+    });
+
+
+    if (vsComputerToggle) {
+      vsComputerToggle.addEventListener("change", (event) => {
+        dispatch(() => {
+          state.playVsComputer = Boolean(event.target.checked);
+          state.opponentLog = state.playVsComputer ? "Play vs Computer enabled." : "Play vs Computer disabled.";
+        });
+      });
+    }
   }
 
   function setupDropZoneVisuals(zone) {
@@ -264,20 +395,28 @@ export function createUI({ app, state, dispatch }) {
         <section class="panel controls-panel">
           <div class="control-row">
             <button id="done-street" type="button" ${state.isFantasyland ? (fantasylandDoneDisabled ? "disabled" : "") : (state.handFinished ? "disabled" : "")}>Done</button>
+            ${state.isFantasyland ? `<button id="reset-fantasyland" type="button" ${state.handFinished ? "disabled" : ""}>Reset FL placement</button>` : ""}
+            <label class="toggle-inline" for="play-vs-computer">
+              <input id="play-vs-computer" type="checkbox" ${state.playVsComputer ? "checked" : ""} />
+              Play vs Computer
+            </label>
           </div>
           <div class="street-meta">
             ${state.isFantasyland ? `
               <p class="street-title">Fantasyland Mode</p>
               <p class="street-requirement">Deal size: ${state.fantasylandCardCount} · Place exactly 13 on board.</p>
               <p class="street-progress">Board placed: ${progress.placedNow}/13 · Remaining extras: ${state.handCards.length}</p>
+              <p class="street-order">First to act this hand: ${state.firstPlayerThisHand === "human" ? "You" : "Opponent"}</p>
             ` : `
               <p class="street-title">Street ${state.currentStreet} / 5</p>
               <p class="street-requirement">Requirement: ${requirement.text}</p>
               <p class="street-progress">Placed this street: ${progress.placedNow}/${requirement.place} · Auto-discarded: ${progress.discardedNow}/${requirement.discard}</p>
+              <p class="street-order">First to act this hand: ${state.firstPlayerThisHand === "human" ? "You" : "Opponent"}</p>
             `}
           </div>
           ${renderFantasylandBanner()}
           <p class="status ${state.statusType}">${state.message}</p>
+          ${state.opponentLog ? `<p class="opponent-log">${state.opponentLog}</p>` : ""}
         </section>
 
         <section class="panel hand-panel">
@@ -285,22 +424,42 @@ export function createUI({ app, state, dispatch }) {
             <h2>${state.isFantasyland ? "Fantasyland Pool" : "Draw Area"}</h2>
             <span class="panel-caption">${state.isFantasyland ? "Unplaced cards (extras auto-burn on Done)" : "Current street cards"}</span>
           </header>
+          ${state.isFantasyland ? `
+            <div class="sort-controls">
+              <span>Sort:</span>
+              <button class="sort-btn ${state.fantasylandSortMode === "value" ? "active" : ""}" data-sort-mode="value" type="button">Value (2→A)</button>
+              <button class="sort-btn ${state.fantasylandSortMode === "suit" ? "active" : ""}" data-sort-mode="suit" type="button">Suit (♠ ♥ ♦ ♣)</button>
+            </div>
+          ` : ""}
           <div class="hand-zone" data-drop-zone="hand">
             ${state.handCards.map((card) => renderCard(card, "hand")).join("")}
           </div>
         </section>
 
-        <section class="panel board-panel">
-          <header class="panel-heading">
-            <h2>Your Board</h2>
-            <span class="panel-caption">Top / Middle / Bottom</span>
-          </header>
-          ${renderRow("top")}
-          ${renderRow("middle")}
-          ${renderRow("bottom")}
+        <section class="players-row">
+          <section class="panel board-panel player-board-panel">
+            <header class="panel-heading">
+              <h2>Your Board</h2>
+              <span class="panel-caption">Top / Middle / Bottom</span>
+            </header>
+            ${renderRow("top")}
+            ${renderRow("middle")}
+            ${renderRow("bottom")}
+          </section>
+
+          ${renderScoreboard()}
+
+          <section class="panel board-panel opponent-board-panel">
+            <header class="panel-heading">
+              <h2>Opponent Board</h2>
+              <span class="panel-caption">Cards are hidden during Fantasyland until showdown</span>
+            </header>
+            ${renderOpponentRow("top")}
+            ${renderOpponentRow("middle")}
+            ${renderOpponentRow("bottom")}
+          </section>
         </section>
 
-        ${renderResult()}
 
         <section class="panel history-panel">
           <header class="panel-heading">
@@ -312,7 +471,7 @@ export function createUI({ app, state, dispatch }) {
 
         <section class="panel rules-panel">
           <h2>Rules (current)</h2>
-          <p>Foul rule: Bottom row must be at least as strong as Middle, and Middle must be at least as strong as Top. Fouled hands score 0 royalties.</p>
+          <p>Foul rule: Bottom row must be at least as strong as Middle, and Middle must be at least as strong as Top. If one player fouls, the opponent scoops (+2 per row, -2 per row to fouler); if both foul, the hand scores 0-0.</p>
           <p><strong>Fantasyland</strong>: Qualify with valid QQ+/trips on top. QQ=13 cards, KK=14, AA=15, trips=16. No consecutive Fantasyland hands.</p>
           <h3>Royalties</h3>
           <p><strong>Top (3 cards)</strong>: Pair 66=1, 77=2, 88=3, 99=4, TT=5, JJ=6, QQ=7, KK=8, AA=9. Trips: 222=10 ... AAA=22.</p>

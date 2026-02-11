@@ -38,10 +38,10 @@ function computeBottomRoyalties(bottomEvaluation) {
   return ROYALTY_TABLE.bottom[bottomEvaluation.rankName] || 0;
 }
 
-export function computeRoyalties(state) {
-  const topEval = evaluateThreeCardTop(state.board.top);
-  const middleEval = evaluateFiveCardHand(state.board.middle);
-  const bottomEval = evaluateFiveCardHand(state.board.bottom);
+export function computeRoyaltiesForBoard(board) {
+  const topEval = evaluateThreeCardTop(board.top);
+  const middleEval = evaluateFiveCardHand(board.middle);
+  const bottomEval = evaluateFiveCardHand(board.bottom);
 
   const topRoyalty = computeTopRoyalties(topEval);
   const middleRoyalty = computeMiddleRoyalties(middleEval);
@@ -53,4 +53,8 @@ export function computeRoyalties(state) {
     bottom: { evaluation: bottomEval, royalty: bottomRoyalty },
     total: topRoyalty + middleRoyalty + bottomRoyalty,
   };
+}
+
+export function computeRoyalties(state) {
+  return computeRoyaltiesForBoard(state.board);
 }

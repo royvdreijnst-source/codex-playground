@@ -1,4 +1,4 @@
-import { runFantasylandRegressionChecks, startHand } from "./src/game.js";
+import { runBotRegressionChecks, runFantasylandRegressionChecks, startHand } from "./src/game.js";
 import { initialState, resetForNewMatch } from "./src/state.js";
 import { createUI } from "./src/ui.js";
 
@@ -23,6 +23,7 @@ function dispatch(update) {
 
 ui = createUI({ app, state, dispatch, resetState });
 runFantasylandRegressionChecks();
+runBotRegressionChecks();
 
 dispatch(() => {
   resetState();
