@@ -316,7 +316,7 @@ button:disabled {
   position: absolute;
   top: 6px;
   left: 6px;
-  font-size: 1rem;
+  font-size: 1.12rem;
   font-weight: 800;
   line-height: 0.95;
   display: flex;
@@ -325,14 +325,9 @@ button:disabled {
   min-width: 16px;
 }
 
-.playing-card .card-corner small {
-  display: none;
-  margin-top: 1px;
-  font-weight: 700;
-}
 
 .playing-card .card-center {
-  font-size: 1.45rem;
+  font-size: 1.6rem;
   line-height: 1;
   opacity: 0.92;
 }

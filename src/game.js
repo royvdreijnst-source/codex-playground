@@ -4,7 +4,7 @@ import {
   evaluateThreeCardTop,
   getFantasylandQualification,
 } from "./evaluator.js";
-import { computeRoyalties } from "./royalties.js";
+import { computeRoyalties, computeRoyaltiesForBoard } from "./royalties.js";
 import { chooseMove } from "./bot.js";
 import { RANKS, RANK_VALUE, ROWS, STREET_REQUIREMENTS, SUITS } from "./state.js";
 
@@ -597,6 +597,8 @@ function finishHand(state) {
   const opponentTop = evaluateThreeCardTop(state.opponentBoard.top);
   const opponentMiddle = evaluateFiveCardHand(state.opponentBoard.middle);
   const opponentBottom = evaluateFiveCardHand(state.opponentBoard.bottom);
+  const playerRoyalties = computeRoyalties(state);
+  const opponentRoyalties = computeRoyaltiesForBoard(state.opponentBoard);
 
   const bothFouled = playerFouled && opponentFouled;
   const singleFoul = (playerFouled || opponentFouled) && !bothFouled;
@@ -631,7 +633,13 @@ function finishHand(state) {
     };
   }
 
-  const headToHeadTotal = rowScores.top + rowScores.middle + rowScores.bottom;
+  const royalties = {
+    top: playerRoyalties.top.royalty - opponentRoyalties.top.royalty,
+    middle: playerRoyalties.middle.royalty - opponentRoyalties.middle.royalty,
+    bottom: playerRoyalties.bottom.royalty - opponentRoyalties.bottom.royalty,
+  };
+  const royaltyTotal = royalties.top + royalties.middle + royalties.bottom;
+  const headToHeadTotal = rowScores.top + rowScores.middle + rowScores.bottom + royaltyTotal;
 
   state.playerScore += headToHeadTotal;
   state.opponentScore -= headToHeadTotal;
@@ -646,6 +654,8 @@ function finishHand(state) {
     },
     rows: rowResults,
     rowScores,
+    royalties,
+    royaltyTotal,
     scoop,
     bothFouled,
     singleFoul,

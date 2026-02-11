@@ -97,7 +97,7 @@ export function createUI({ app, state, dispatch }) {
         type="button"
         title="${card.code}"
       >
-        <span class="card-corner">${card.rank}<small>${card.suit}</small></span>
+        <span class="card-corner">${card.rank}${card.suit}</span>
         <span class="card-center">${card.rank}${card.suit}</span>
       </button>
     `;
@@ -145,7 +145,7 @@ export function createUI({ app, state, dispatch }) {
 
         return `
           <div class="card playing-card ${getCardColorClass(card)} opponent-card" title="${card.code}">
-            <span class="card-corner">${card.rank}<small>${card.suit}</small></span>
+            <span class="card-corner">${card.rank}${card.suit}</span>
             <span class="card-center">${card.rank}${card.suit}</span>
           </div>
         `;
@@ -166,7 +166,6 @@ export function createUI({ app, state, dispatch }) {
   }
 
   function renderScoreboard() {
-    const rowLabels = { top: "Top Row", middle: "Middle Row", bottom: "Bottom Row" };
     if (!state.result) {
       return `
         <section class="panel score-panel">
@@ -181,7 +180,9 @@ export function createUI({ app, state, dispatch }) {
     }
 
     const rows = ["top", "middle", "bottom"].map((rowKey) => {
-      const score = state.result.rowScores[rowKey];
+      const rowScore = state.result.rowScores[rowKey];
+      const rowRoyalty = state.result.royalties?.[rowKey] ?? 0;
+      const score = rowScore + rowRoyalty;
       const playerScore = score > 0 ? `+${score}` : `${score}`;
       const opponentScore = score === 0 ? "0" : `${-score}`;
       const playerEval = state.result[rowKey].evaluation.rankName;
@@ -204,8 +205,8 @@ export function createUI({ app, state, dispatch }) {
       summaryText = "Both players fouled. Score is 0-0.";
     } else if (state.result.singleFoul) {
       summaryText = state.result.fouled
-        ? "You fouled. You lose all rows (-1 each)."
-        : "Opponent fouled. You win all rows (+1 each).";
+        ? "You fouled. You lose all rows; royalties are still applied."
+        : "Opponent fouled. You win all rows; royalties are still applied.";
     } else if (state.result.scoop) {
       summaryText = "Scoop! 2 points per row.";
     }
@@ -224,14 +225,13 @@ export function createUI({ app, state, dispatch }) {
         <div class="score-table-wrap">
           <table class="score-table">
             <thead>
-              <tr><th>Hand rank player</th><th>Resulting Score if Player has &gt; 0 points</th><th>Resulting Score if Opponent has &gt; 0 points</th><th>Hand Rank Opponent</th></tr>
+              <tr><th>Player Hand</th><th>Player Score</th><th>Opponent Score</th><th>Opponent Hand</th></tr>
             </thead>
             <tbody>
-              <tr class="score-section-row"><th colspan="4">${rowLabels.top}</th></tr>
               ${rows[0]}
-              <tr class="score-section-row"><th colspan="4">${rowLabels.middle}</th></tr>
+              <tr class="score-section-row"><th colspan="4"></th></tr>
               ${rows[1]}
-              <tr class="score-section-row"><th colspan="4">${rowLabels.bottom}</th></tr>
+              <tr class="score-section-row"><th colspan="4"></th></tr>
               ${rows[2]}
               <tr class="score-total-row"><th>TOTAL score</th><td>${totalPlayer}</td><td>${totalOpponent}</td><th></th></tr>
             </tbody>
