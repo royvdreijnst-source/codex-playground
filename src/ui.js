@@ -1,0 +1,306 @@
+import {
+  applyDiscard,
+  applyDropToRow,
+  applyMoveRowCard,
+  applyMoveRowCardBackToHand,
+  canDragCard,
+  doneStreet,
+  getStreetProgress,
+  setDiscardMode,
+  startHand,
+} from "./game.js";
+import { ROWS, STREET_REQUIREMENTS } from "./state.js";
+
+function getCardColorClass(card) {
+  return card.suit === "♥" || card.suit === "♦" ? "red" : "black";
+}
+
+function parseDragPayload(event) {
+  const raw = event.dataTransfer.getData("text/plain");
+  try {
+    return JSON.parse(raw || "{}");
+  } catch {
+    return {};
+  }
+}
+
+export function createUI({ app, state, dispatch, resetState }) {
+  function renderCard(card, source, rowKey = "") {
+    const draggable = canDragCard(state, card.id);
+    return `
+      <button
+        class="card ${getCardColorClass(card)} ${draggable ? "draggable" : "locked-card"}"
+        data-card-id="${card.id}"
+        data-drag-source="${source}"
+        data-row="${rowKey}"
+        draggable="${draggable}"
+        type="button"
+        title="${card.code}"
+      >${card.code}</button>
+    `;
+  }
+
+  function renderRow(rowKey) {
+    const cards = state.board[rowKey].map((card) => renderCard(card, "row", rowKey)).join("");
+
+    return `
+      <section class="row-panel">
+        <header class="row-header">
+          <h3>${ROWS[rowKey].label}</h3>
+          <span>${state.board[rowKey].length}/${ROWS[rowKey].max}</span>
+        </header>
+        <div class="row-cards" data-row="${rowKey}">${cards}</div>
+      </section>
+    `;
+  }
+
+  function renderResult() {
+    if (!state.result) {
+      return "";
+    }
+
+    return `
+      <section class="panel result-panel">
+        <h2>Hand Result</h2>
+        <p class="${state.result.fouled ? "error-text" : "success-text"}">
+          ${state.result.fouled ? "FOULED - Royalties = 0" : "Valid Hand"}
+        </p>
+        <ul>
+          <li>Top: ${state.result.top.evaluation.rankName} (Royalty ${state.result.top.royalty})</li>
+          <li>Middle: ${state.result.middle.evaluation.rankName} (Royalty ${state.result.middle.royalty})</li>
+          <li>Bottom: ${state.result.bottom.evaluation.rankName} (Royalty ${state.result.bottom.royalty})</li>
+        </ul>
+        <p><strong>Total Royalties: ${state.result.total}</strong></p>
+      </section>
+    `;
+  }
+
+  function renderStreetHistory() {
+    const lines = [];
+    for (let street = 1; street <= 5; street += 1) {
+      if (!state.dealtByStreet[street]) {
+        continue;
+      }
+      const dealt = state.dealtByStreet[street].join(" ");
+      const discarded = state.discardedByStreet[street] && state.discardedByStreet[street].length
+        ? state.discardedByStreet[street].join(" ")
+        : "-";
+      lines.push(`<li>Street ${street}: Dealt [${dealt}] | Discarded [${discarded}]</li>`);
+    }
+    return `<ul>${lines.join("")}</ul>`;
+  }
+
+  function bindEvents() {
+    const newHandButton = document.getElementById("new-hand");
+    const doneStreetButton = document.getElementById("done-street");
+    const discardModeInput = document.getElementById("discard-mode");
+
+    if (!newHandButton || !doneStreetButton || !discardModeInput) {
+      return;
+    }
+
+    newHandButton.addEventListener("click", () => {
+      dispatch(() => {
+        resetState();
+        startHand(state);
+      });
+    });
+
+    doneStreetButton.addEventListener("click", () => {
+      dispatch(() => {
+        doneStreet(state);
+      });
+    });
+
+    discardModeInput.addEventListener("change", (event) => {
+      dispatch(() => {
+        setDiscardMode(state, event.target.checked);
+      });
+    });
+
+    document.querySelectorAll(".card").forEach((cardButton) => {
+      cardButton.addEventListener("click", () => {
+        const cardId = cardButton.dataset.cardId;
+        if (state.discardMode && canDragCard(state, cardId) && !state.handFinished) {
+          dispatch(() => {
+            applyDiscard(state, cardId);
+          });
+        }
+      });
+    });
+  }
+
+  function setupDropZoneVisuals(zone) {
+    zone.addEventListener("dragenter", (event) => {
+      event.preventDefault();
+      zone.classList.add("drop-active");
+    });
+
+    zone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      zone.classList.add("drop-active");
+    });
+
+    zone.addEventListener("dragleave", (event) => {
+      if (!zone.contains(event.relatedTarget)) {
+        zone.classList.remove("drop-active");
+      }
+    });
+  }
+
+  function setupDragAndDrop() {
+    document.querySelectorAll(".card[draggable='true']").forEach((cardEl) => {
+      cardEl.addEventListener("dragstart", (event) => {
+        const cardId = cardEl.dataset.cardId;
+        const source = cardEl.dataset.dragSource;
+        const row = cardEl.dataset.row || null;
+        event.dataTransfer.setData("text/plain", JSON.stringify({ cardId, source, row }));
+        event.dataTransfer.effectAllowed = "move";
+      });
+    });
+
+    document.querySelectorAll("[data-row]").forEach((rowZone) => {
+      setupDropZoneVisuals(rowZone);
+      rowZone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        rowZone.classList.remove("drop-active");
+        const payload = parseDragPayload(event);
+
+        if (!payload.cardId || !canDragCard(state, payload.cardId)) {
+          return;
+        }
+
+        const destinationRow = rowZone.dataset.row;
+        dispatch(() => {
+          if (payload.source === "hand") {
+            applyDropToRow(state, payload.cardId, destinationRow);
+          } else if (payload.source === "row") {
+            applyMoveRowCard(state, payload.cardId, destinationRow);
+          }
+        });
+      });
+    });
+
+    const handZone = document.querySelector("[data-drop-zone='hand']");
+    if (!handZone) {
+      return;
+    }
+
+    setupDropZoneVisuals(handZone);
+    handZone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      handZone.classList.remove("drop-active");
+      const payload = parseDragPayload(event);
+
+      if (!payload.cardId || payload.source !== "row" || !canDragCard(state, payload.cardId)) {
+        return;
+      }
+
+      dispatch(() => {
+        applyMoveRowCardBackToHand(state, payload.cardId);
+      });
+    });
+
+    const discardZone = document.querySelector("[data-drop-zone='discard']");
+    if (!discardZone) {
+      return;
+    }
+
+    setupDropZoneVisuals(discardZone);
+    discardZone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      discardZone.classList.remove("drop-active");
+      const payload = parseDragPayload(event);
+
+      if (!payload.cardId || !canDragCard(state, payload.cardId)) {
+        return;
+      }
+
+      dispatch(() => {
+        applyDiscard(state, payload.cardId);
+      });
+    });
+  }
+
+  function render() {
+    const requirement = STREET_REQUIREMENTS[state.currentStreet];
+    const progress = getStreetProgress(state);
+
+    app.innerHTML = `
+      <section class="game-layout">
+        <section class="panel controls-panel">
+          <div class="control-row">
+            <button id="new-hand" type="button">New Hand</button>
+            <button id="done-street" type="button" ${state.handFinished ? "disabled" : ""}>Done</button>
+            <label class="toggle-wrap">
+              <input id="discard-mode" type="checkbox" ${state.discardMode ? "checked" : ""} ${state.handFinished ? "disabled" : ""}/>
+              Discard mode (click card)
+            </label>
+          </div>
+          <div class="street-meta">
+            <p class="street-title">Street ${state.currentStreet} / 5</p>
+            <p class="street-requirement">Requirement: ${requirement.text}</p>
+            <p class="street-progress">Placed this street: ${progress.placedNow}/${requirement.place} · Discarded: ${progress.discardedNow}/${requirement.discard}</p>
+          </div>
+          <p class="status ${state.statusType}">${state.message}</p>
+        </section>
+
+        <section class="panel hand-panel">
+          <header class="panel-heading">
+            <h2>Draw Area</h2>
+            <span class="panel-caption">Current street cards</span>
+          </header>
+          <div class="hand-zone" data-drop-zone="hand">
+            ${state.handCards.map((card) => renderCard(card, "hand")).join("")}
+          </div>
+        </section>
+
+        <section class="panel board-panel">
+          <header class="panel-heading">
+            <h2>Your Board</h2>
+            <span class="panel-caption">Top / Middle / Bottom</span>
+          </header>
+          ${renderRow("top")}
+          ${renderRow("middle")}
+          ${renderRow("bottom")}
+        </section>
+
+        <section class="panel discard-panel">
+          <header class="panel-heading">
+            <h2>Discard Zone</h2>
+            <span class="panel-caption">Streets 2-5 discard one current-street card</span>
+          </header>
+          <div class="discard-zone" data-drop-zone="discard">
+            <strong>Drop card to discard</strong>
+            <p>Only cards from this street can be discarded.</p>
+          </div>
+        </section>
+
+        ${renderResult()}
+
+        <section class="panel history-panel">
+          <header class="panel-heading">
+            <h2>Street History</h2>
+            <span class="panel-caption">Dealt and discarded cards</span>
+          </header>
+          ${renderStreetHistory()}
+        </section>
+
+        <section class="panel rules-panel">
+          <h2>Rules (current)</h2>
+          <p>Foul rule: Bottom row must be at least as strong as Middle, and Middle must be at least as strong as Top. Fouled hands score 0 royalties.</p>
+          <h3>Royalties</h3>
+          <p><strong>Top (3 cards)</strong>: Pair 66=1, 77=2, 88=3, 99=4, TT=5, JJ=6, QQ=7, KK=8, AA=9. Trips: 222=10 ... AAA=22.</p>
+          <p><strong>Middle (5 cards)</strong>: Trips=2, Straight=4, Flush=8, Full House=12, Quads=20, Straight Flush=30.</p>
+          <p><strong>Bottom (5 cards)</strong>: Straight=2, Flush=4, Full House=6, Quads=10, Straight Flush=15.</p>
+        </section>
+      </section>
+    `;
+
+    bindEvents();
+    setupDragAndDrop();
+  }
+
+  return { render };
+}
