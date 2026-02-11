@@ -1,5 +1,9 @@
 const app = document.getElementById("app");
 
+if (!app) {
+  throw new Error("App mount element #app was not found.");
+}
+
 const SUITS = ["♠", "♥", "♦", "♣"];
 const RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 const RANK_VALUE = Object.fromEntries(RANKS.map((rank, index) => [rank, index + 2]));
@@ -75,6 +79,7 @@ function resetHand() {
   state.handFinished = false;
   state.result = null;
   startStreet(1);
+  draw();
 }
 
 function startStreet(streetNumber) {
@@ -211,7 +216,7 @@ function getStreetProgress() {
     state.streetStartBoardCounts.top -
     state.streetStartBoardCounts.middle -
     state.streetStartBoardCounts.bottom;
-  const discardedNow = state.discardedByStreet[state.currentStreet].length;
+  const discardedNow = (state.discardedByStreet[state.currentStreet] || []).length;
   return { placedNow, discardedNow };
 }
 
@@ -515,11 +520,12 @@ function renderRow(rowKey) {
     .join("");
 
   return `
-    <section class="row" data-row="${rowKey}">
-      <header>
-        <h3>${ROWS[rowKey].label} (${state.board[rowKey].length}/${ROWS[rowKey].max})</h3>
+    <section class="row-panel">
+      <header class="row-header">
+        <h3>${ROWS[rowKey].label}</h3>
+        <span>${state.board[rowKey].length}/${ROWS[rowKey].max}</span>
       </header>
-      <div class="row-cards">${cards}</div>
+      <div class="row-cards" data-row="${rowKey}">${cards}</div>
     </section>
   `;
 }
@@ -530,7 +536,7 @@ function renderResult() {
   }
 
   return `
-    <section class="result-panel">
+    <section class="panel result-panel">
       <h2>Hand Result</h2>
       <p class="${state.result.fouled ? "error-text" : "success-text"}">
         ${state.result.fouled ? "FOULED - Royalties = 0" : "Valid Hand"}
@@ -565,7 +571,7 @@ function draw() {
   const progress = getStreetProgress();
 
   app.innerHTML = `
-    <main class="layout">
+    <section class="game-layout">
       <section class="panel controls-panel">
         <div class="control-row">
           <button id="new-hand" type="button">New Hand</button>
@@ -575,46 +581,64 @@ function draw() {
             Discard mode (click card)
           </label>
         </div>
-        <p class="street-title">Street ${state.currentStreet} / 5</p>
-        <p class="street-requirement">Requirement: ${requirement.text}</p>
-        <p class="street-progress">Placed this street: ${progress.placedNow}/${requirement.place} | Discarded: ${progress.discardedNow}/${requirement.discard}</p>
+        <div class="street-meta">
+          <p class="street-title">Street ${state.currentStreet} / 5</p>
+          <p class="street-requirement">Requirement: ${requirement.text}</p>
+          <p class="street-progress">Placed this street: ${progress.placedNow}/${requirement.place} · Discarded: ${progress.discardedNow}/${requirement.discard}</p>
+        </div>
         <p class="status ${state.statusType}">${state.message}</p>
       </section>
 
       <section class="panel hand-panel">
-        <h2>Current Street Cards</h2>
+        <header class="panel-heading">
+          <h2>Draw Area</h2>
+          <span class="panel-caption">Current street cards</span>
+        </header>
         <div class="hand-zone" data-drop-zone="hand">
           ${state.handCards.map((card) => renderCard(card, "hand")).join("")}
-        </div>
-        <div class="discard-zone" data-drop-zone="discard">
-          <strong>Discard Area</strong>
-          <p>Drop one current-street card here (streets 2-5).</p>
         </div>
       </section>
 
       <section class="panel board-panel">
-        <h2>Board</h2>
+        <header class="panel-heading">
+          <h2>Your Board</h2>
+          <span class="panel-caption">Top / Middle / Bottom</span>
+        </header>
         ${renderRow("top")}
         ${renderRow("middle")}
         ${renderRow("bottom")}
       </section>
 
+      <section class="panel discard-panel">
+        <header class="panel-heading">
+          <h2>Discard Zone</h2>
+          <span class="panel-caption">Streets 2-5 discard one current-street card</span>
+        </header>
+        <div class="discard-zone" data-drop-zone="discard">
+          <strong>Drop card to discard</strong>
+          <p>Only cards from this street can be discarded.</p>
+        </div>
+      </section>
+
       ${renderResult()}
 
       <section class="panel history-panel">
-        <h2>Street History</h2>
+        <header class="panel-heading">
+          <h2>Street History</h2>
+          <span class="panel-caption">Dealt and discarded cards</span>
+        </header>
         ${renderStreetHistory()}
       </section>
 
       <section class="panel rules-panel">
         <h2>Rules (current)</h2>
-        <p>Foul rule: bottom row must be >= middle row >= top row by hand strength. Fouled hands score 0 royalties.</p>
+        <p>Foul rule: Bottom row must be at least as strong as Middle, and Middle must be at least as strong as Top. Fouled hands score 0 royalties.</p>
         <h3>Royalties</h3>
         <p><strong>Top (3 cards)</strong>: Pair 66=1, 77=2, 88=3, 99=4, TT=5, JJ=6, QQ=7, KK=8, AA=9. Trips: 222=10 ... AAA=22.</p>
         <p><strong>Middle (5 cards)</strong>: Trips=2, Straight=4, Flush=8, Full House=12, Quads=20, Straight Flush=30.</p>
         <p><strong>Bottom (5 cards)</strong>: Straight=2, Flush=4, Full House=6, Quads=10, Straight Flush=15.</p>
       </section>
-    </main>
+    </section>
   `;
 
   bindEvents();
@@ -622,9 +646,17 @@ function draw() {
 }
 
 function bindEvents() {
-  document.getElementById("new-hand").addEventListener("click", resetHand);
-  document.getElementById("done-street").addEventListener("click", onDoneStreet);
-  document.getElementById("discard-mode").addEventListener("change", (event) => {
+  const newHandButton = document.getElementById("new-hand");
+  const doneStreetButton = document.getElementById("done-street");
+  const discardModeInput = document.getElementById("discard-mode");
+
+  if (!newHandButton || !doneStreetButton || !discardModeInput) {
+    return;
+  }
+
+  newHandButton.addEventListener("click", resetHand);
+  doneStreetButton.addEventListener("click", onDoneStreet);
+  discardModeInput.addEventListener("change", (event) => {
     state.discardMode = event.target.checked;
   });
 
@@ -698,6 +730,10 @@ function setupDragAndDrop() {
   });
 
   const handZone = document.querySelector("[data-drop-zone='hand']");
+  if (!handZone) {
+    return;
+  }
+
   setupDropZoneVisuals(handZone);
   handZone.addEventListener("drop", (event) => {
     event.preventDefault();
@@ -712,6 +748,10 @@ function setupDragAndDrop() {
   });
 
   const discardZone = document.querySelector("[data-drop-zone='discard']");
+  if (!discardZone) {
+    return;
+  }
+
   setupDropZoneVisuals(discardZone);
   discardZone.addEventListener("drop", (event) => {
     event.preventDefault();
@@ -727,4 +767,3 @@ function setupDragAndDrop() {
 }
 
 resetHand();
-draw();
