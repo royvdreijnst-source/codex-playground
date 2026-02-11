@@ -1,4 +1,4 @@
-import { evaluateFiveCardHand, evaluateThreeCardTop } from "./evaluator.js";
+import { evaluate5, evaluateTop3 } from "./evaluator.js";
 
 export const ROYALTY_TABLE = {
   middle: {
@@ -18,40 +18,55 @@ export const ROYALTY_TABLE = {
   },
 };
 
-function computeTopRoyalties(topEvaluation) {
-  if (topEvaluation.rankName === "Three of a Kind") {
-    return topEvaluation.tiebreak[0] + 8;
+export function computeTopRoyalties(topRank) {
+  if (topRank.categoryName === "Three of a Kind") {
+    return topRank.tiebreakers[0] + 8;
   }
 
-  if (topEvaluation.rankName === "One Pair" && topEvaluation.tiebreak[0] >= 6) {
-    return topEvaluation.tiebreak[0] - 5;
+  if (topRank.categoryName === "One Pair" && topRank.tiebreakers[0] >= 6) {
+    return topRank.tiebreakers[0] - 5;
   }
 
   return 0;
 }
 
-function computeMiddleRoyalties(middleEvaluation) {
-  return ROYALTY_TABLE.middle[middleEvaluation.rankName] || 0;
+export function computeMiddleRoyalties(middleRank) {
+  return ROYALTY_TABLE.middle[middleRank.categoryName] || 0;
 }
 
-function computeBottomRoyalties(bottomEvaluation) {
-  return ROYALTY_TABLE.bottom[bottomEvaluation.rankName] || 0;
+export function computeBottomRoyalties(bottomRank) {
+  return ROYALTY_TABLE.bottom[bottomRank.categoryName] || 0;
+}
+
+export function computeBoardRoyalties(board) {
+  const topRank = evaluateTop3(board.top);
+  const middleRank = evaluate5(board.middle);
+  const bottomRank = evaluate5(board.bottom);
+
+  const top = computeTopRoyalties(topRank);
+  const middle = computeMiddleRoyalties(middleRank);
+  const bottom = computeBottomRoyalties(bottomRank);
+
+  return {
+    top,
+    middle,
+    bottom,
+    total: top + middle + bottom,
+    ranks: {
+      top: topRank,
+      middle: middleRank,
+      bottom: bottomRank,
+    },
+  };
 }
 
 export function computeRoyaltiesForBoard(board) {
-  const topEval = evaluateThreeCardTop(board.top);
-  const middleEval = evaluateFiveCardHand(board.middle);
-  const bottomEval = evaluateFiveCardHand(board.bottom);
-
-  const topRoyalty = computeTopRoyalties(topEval);
-  const middleRoyalty = computeMiddleRoyalties(middleEval);
-  const bottomRoyalty = computeBottomRoyalties(bottomEval);
-
+  const royalties = computeBoardRoyalties(board);
   return {
-    top: { evaluation: topEval, royalty: topRoyalty },
-    middle: { evaluation: middleEval, royalty: middleRoyalty },
-    bottom: { evaluation: bottomEval, royalty: bottomRoyalty },
-    total: topRoyalty + middleRoyalty + bottomRoyalty,
+    top: { evaluation: royalties.ranks.top, royalty: royalties.top },
+    middle: { evaluation: royalties.ranks.middle, royalty: royalties.middle },
+    bottom: { evaluation: royalties.ranks.bottom, royalty: royalties.bottom },
+    total: royalties.total,
   };
 }
 

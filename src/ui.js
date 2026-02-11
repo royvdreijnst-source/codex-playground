@@ -9,8 +9,6 @@ import {
   resetFantasylandPlacement,
   startHand,
 } from "./game.js";
-import { evaluateFiveCardHand, evaluateThreeCardTop } from "./evaluator.js";
-import { ROYALTY_TABLE } from "./royalties.js";
 import { RANK_VALUE, ROWS, STREET_REQUIREMENTS } from "./state.js";
 
 function getCardColorClass(card) {
@@ -47,18 +45,6 @@ export function createUI({ app, state, dispatch }) {
       return RANK_VALUE[a.rank] - RANK_VALUE[b.rank];
     });
   }
-  function getTopRoyalty(evaluation) {
-    if (evaluation.rankName === "Three of a Kind") {
-      return evaluation.tiebreak[0] + 8;
-    }
-
-    if (evaluation.rankName === "One Pair" && evaluation.tiebreak[0] >= 6) {
-      return evaluation.tiebreak[0] - 5;
-    }
-
-    return 0;
-  }
-
   function getRowSummary(rowKey) {
     const cards = state.board[rowKey];
     const isComplete = cards.length === ROWS[rowKey].max;
@@ -70,18 +56,17 @@ export function createUI({ app, state, dispatch }) {
       };
     }
 
-    if (rowKey === "top") {
-      const evaluation = evaluateThreeCardTop(cards);
+    if (!state.handFinished || !state.result?.scoring) {
       return {
-        handType: evaluation.rankName,
-        score: getTopRoyalty(evaluation),
+        handType: "Complete",
+        score: "—",
       };
     }
 
-    const evaluation = evaluateFiveCardHand(cards);
+    const rowRank = state.result.scoring.breakdown?.evaluations?.boardA?.[rowKey];
     return {
-      handType: evaluation.rankName,
-      score: ROYALTY_TABLE[rowKey][evaluation.rankName] || 0,
+      handType: rowRank?.categoryName || "Complete",
+      score: "—",
     };
   }
 
@@ -195,10 +180,10 @@ export function createUI({ app, state, dispatch }) {
       summaryText = "Both players fouled. Score is 0-0.";
     } else if (state.result.singleFoul) {
       summaryText = state.result.fouled
-        ? "You fouled. Opponent scoops (+2 per row) and royalties are still applied."
-        : "Opponent fouled. You scoop (+2 per row) and royalties are still applied.";
+        ? "You fouled. You lose all three lines and get no royalties."
+        : "Opponent fouled. You win all three lines; fouled player gets no royalties.";
     } else if (state.result.scoop) {
-      summaryText = "Scoop! 2 points per row.";
+      summaryText = "Scoop! +3 bonus applied once.";
     }
 
     return `
@@ -471,7 +456,7 @@ export function createUI({ app, state, dispatch }) {
 
         <section class="panel rules-panel">
           <h2>Rules (current)</h2>
-          <p>Foul rule: Bottom row must be at least as strong as Middle, and Middle must be at least as strong as Top. If one player fouls, the opponent scoops (+2 per row, -2 per row to fouler); if both foul, the hand scores 0-0.</p>
+          <p>Foul rule: Bottom row must be at least as strong as Middle, and Middle must be at least as strong as Top. If one player fouls, the fouled player loses all three lines, gets no royalties, and both-foul is always 0-0.</p>
           <p><strong>Fantasyland</strong>: Qualify with valid QQ+/trips on top. QQ=13 cards, KK=14, AA=15, trips=16. No consecutive Fantasyland hands.</p>
           <h3>Royalties</h3>
           <p><strong>Top (3 cards)</strong>: Pair 66=1, 77=2, 88=3, 99=4, TT=5, JJ=6, QQ=7, KK=8, AA=9. Trips: 222=10 ... AAA=22.</p>

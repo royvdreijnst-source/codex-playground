@@ -1,11 +1,6 @@
-import {
-  compareHands,
-  evaluateFiveCardHand,
-  evaluateThreeCardTop,
-  getFantasylandQualification,
-} from "./evaluator.js";
-import { computeRoyalties, computeRoyaltiesForBoard } from "./royalties.js";
+import { evaluate5, evaluateTop3, getFantasylandQualification } from "./evaluator.js";
 import { chooseMove } from "./bot.js";
+import { scoreHand } from "./scoring.js";
 import { RANKS, RANK_VALUE, ROWS, STREET_REQUIREMENTS, SUITS } from "./state.js";
 
 function setStatus(state, message, type = "info") {
@@ -512,50 +507,24 @@ export function isBoardComplete(state) {
 }
 
 export function isFouled(state) {
-  const topEval = evaluateThreeCardTop(state.board.top);
-  const middleEval = evaluateFiveCardHand(state.board.middle);
-  const bottomEval = evaluateFiveCardHand(state.board.bottom);
-
-  return compareHands(bottomEval, middleEval) < 0 || compareHands(middleEval, topEval) < 0;
+  const scored = scoreHand(state.board, state.opponentBoard);
+  return scored.foulA;
 }
 
 export function evaluateFinalResult(state) {
-  const base = computeRoyalties(state);
-  if (isFouled(state)) {
-    return {
-      fouled: true,
-      top: { evaluation: base.top.evaluation, royalty: 0 },
-      middle: { evaluation: base.middle.evaluation, royalty: 0 },
-      bottom: { evaluation: base.bottom.evaluation, royalty: 0 },
-      total: 0,
-    };
-  }
+  const scored = scoreHand(state.board, state.opponentBoard);
+  const topEval = evaluateTop3(state.board.top);
+  const middleEval = evaluate5(state.board.middle);
+  const bottomEval = evaluate5(state.board.bottom);
 
   return {
-    fouled: false,
-    ...base,
+    fouled: scored.foulA,
+    top: { evaluation: topEval, royalty: scored.breakdown.royaltiesA.top },
+    middle: { evaluation: middleEval, royalty: scored.breakdown.royaltiesA.middle },
+    bottom: { evaluation: bottomEval, royalty: scored.breakdown.royaltiesA.bottom },
+    total: scored.pointsA,
+    scoring: scored,
   };
-}
-
-function evaluateOpponentFoul(state) {
-  const topEval = evaluateThreeCardTop(state.opponentBoard.top);
-  const middleEval = evaluateFiveCardHand(state.opponentBoard.middle);
-  const bottomEval = evaluateFiveCardHand(state.opponentBoard.bottom);
-
-  return compareHands(bottomEval, middleEval) < 0 || compareHands(middleEval, topEval) < 0;
-}
-
-function compareRows(heroEval, villainEval, heroFouled, villainFouled) {
-  if (heroFouled && villainFouled) {
-    return 0;
-  }
-  if (heroFouled) {
-    return -1;
-  }
-  if (villainFouled) {
-    return 1;
-  }
-  return Math.sign(compareHands(heroEval, villainEval));
 }
 
 function finalizeFantasylandOutcome(state, playerFouled, opponentFouled) {
@@ -587,81 +556,45 @@ function finalizeFantasylandOutcome(state, playerFouled, opponentFouled) {
 
 function finishHand(state) {
   state.handFinished = true;
-  const playerResult = evaluateFinalResult(state);
-  const playerFouled = playerResult.fouled;
-  const opponentFouled = evaluateOpponentFoul(state);
 
-  const playerTop = evaluateThreeCardTop(state.board.top);
-  const playerMiddle = evaluateFiveCardHand(state.board.middle);
-  const playerBottom = evaluateFiveCardHand(state.board.bottom);
-  const opponentTop = evaluateThreeCardTop(state.opponentBoard.top);
-  const opponentMiddle = evaluateFiveCardHand(state.opponentBoard.middle);
-  const opponentBottom = evaluateFiveCardHand(state.opponentBoard.bottom);
-  const playerRoyalties = computeRoyalties(state);
-  const opponentRoyalties = computeRoyaltiesForBoard(state.opponentBoard);
+  const scored = scoreHand(state.board, state.opponentBoard);
+  const playerFouled = scored.foulA;
+  const opponentFouled = scored.foulB;
 
-  const bothFouled = playerFouled && opponentFouled;
-  const singleFoul = (playerFouled || opponentFouled) && !bothFouled;
+  const playerTop = evaluateTop3(state.board.top);
+  const playerMiddle = evaluate5(state.board.middle);
+  const playerBottom = evaluate5(state.board.bottom);
+  const opponentTop = evaluateTop3(state.opponentBoard.top);
+  const opponentMiddle = evaluate5(state.opponentBoard.middle);
+  const opponentBottom = evaluate5(state.opponentBoard.bottom);
 
-  const rowResults = {
-    top: compareRows(playerTop, opponentTop, playerFouled, opponentFouled),
-    middle: compareRows(playerMiddle, opponentMiddle, playerFouled, opponentFouled),
-    bottom: compareRows(playerBottom, opponentBottom, playerFouled, opponentFouled),
-  };
-
-  let rowScores = {
-    top: 0,
-    middle: 0,
-    bottom: 0,
-  };
-  let scoop = false;
-
-  if (singleFoul) {
-    rowScores = playerFouled
-      ? { top: -2, middle: -2, bottom: -2 }
-      : { top: 2, middle: 2, bottom: 2 };
-    scoop = true;
-  } else if (!bothFouled) {
-    const playerWins = Object.values(rowResults).filter((result) => result > 0).length;
-    const opponentWins = Object.values(rowResults).filter((result) => result < 0).length;
-    scoop = playerWins === 3 || opponentWins === 3;
-    const rowUnit = scoop ? 2 : 1;
-
-    rowScores = {
-      top: rowResults.top * rowUnit,
-      middle: rowResults.middle * rowUnit,
-      bottom: rowResults.bottom * rowUnit,
-    };
-  }
-
-  const royalties = {
-    top: playerRoyalties.top.royalty - opponentRoyalties.top.royalty,
-    middle: playerRoyalties.middle.royalty - opponentRoyalties.middle.royalty,
-    bottom: playerRoyalties.bottom.royalty - opponentRoyalties.bottom.royalty,
-  };
-  const royaltyTotal = royalties.top + royalties.middle + royalties.bottom;
-  const headToHeadTotal = rowScores.top + rowScores.middle + rowScores.bottom + royaltyTotal;
-
-  state.playerScore += headToHeadTotal;
-  state.opponentScore -= headToHeadTotal;
+  state.playerScore += scored.pointsA;
+  state.opponentScore += scored.pointsB;
 
   state.result = {
-    ...playerResult,
+    fouled: playerFouled,
+    top: { evaluation: playerTop, royalty: scored.breakdown.royaltiesA.top },
+    middle: { evaluation: playerMiddle, royalty: scored.breakdown.royaltiesA.middle },
+    bottom: { evaluation: playerBottom, royalty: scored.breakdown.royaltiesA.bottom },
     opponent: {
       fouled: opponentFouled,
       top: opponentTop,
       middle: opponentMiddle,
       bottom: opponentBottom,
     },
-    rows: rowResults,
-    rowScores,
-    royalties,
-    royaltyTotal,
-    scoop,
-    bothFouled,
-    singleFoul,
-    headToHeadTotal,
-    total: headToHeadTotal,
+    rows: scored.lineWinsA,
+    rowScores: scored.lineWinsA,
+    royalties: {
+      top: scored.breakdown.royaltiesA.top - scored.breakdown.royaltiesB.top,
+      middle: scored.breakdown.royaltiesA.middle - scored.breakdown.royaltiesB.middle,
+      bottom: scored.breakdown.royaltiesA.bottom - scored.breakdown.royaltiesB.bottom,
+    },
+    royaltyTotal: scored.royaltiesA - scored.royaltiesB,
+    scoop: scored.scoopA,
+    bothFouled: scored.foulA && scored.foulB,
+    singleFoul: (scored.foulA || scored.foulB) && !(scored.foulA && scored.foulB),
+    headToHeadTotal: scored.pointsA,
+    total: scored.pointsA,
     informationSymmetric: state.isFantasyland,
     boardsAtShowdown: {
       hero: {
@@ -671,6 +604,7 @@ function finishHand(state) {
       },
       opponent: getOpponentHandSnapshot(state),
     },
+    scoring: scored,
   };
 
   finalizeFantasylandOutcome(state, playerFouled, opponentFouled);
